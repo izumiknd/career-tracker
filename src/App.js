@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import logoPathnote from './logo-pathnote.png';
 
-// ── Light theme design tokens ─────────────────────────────────
 const C = {
   bg:      "#F8F9FC",
   surface: "#FFFFFF",
@@ -24,7 +23,6 @@ const C = {
 const FONT_BODY = "'Noto Sans JP', 'Hiragino Sans', sans-serif";
 const FONT_MONO = "'DM Mono', monospace";
 
-// ── Skill categories ──────────────────────────────────────────
 const SKILL_CATS = [
   { label: "コミュニケーション", color: "#4361EE", icon: "💬", skills: ["プレゼンテーション","交渉・説得","ヒアリング","文章作成","語学（英語）","ファシリテーション","電話・メール対応"] },
   { label: "思考・分析",        color: "#7B2FBE", icon: "🧠", skills: ["論理的思考","データ分析","課題発見","企画立案","リサーチ","数値管理","問題解決"] },
@@ -64,27 +62,18 @@ const TRAIT_CATS = [
 
 const YEAR_OPTS = ["半年未満","半年〜1年","1〜3年","3〜5年","5年以上"];
 const YEAR_TO_NUM = { "半年未満":10,"半年〜1年":25,"1〜3年":50,"3〜5年":75,"5年以上":95 };
-
 const INCOME_OPTS = ["300万円未満","300〜400万円","400〜500万円","500〜700万円","700〜1000万円","1000万円以上","答えたくない"];
 const POSITION_OPTS = ["学生・就活中","アルバイト・パート","一般社員・スタッフ","主任・リーダー","係長・課長補佐","課長・マネージャー","部長・シニアマネージャー","役員・経営者","フリーランス・個人事業主","その他"];
 
-// ── Groq API ──────────────────────────────────────────────────
 async function callAI(prompt) {
   const apiKey = process.env.REACT_APP_GROQ_API_KEY;
   if (!apiKey) throw new Error("APIキーが設定されていません");
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-    }),
+    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: prompt }], temperature: 0.3 }),
   });
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(`API ${res.status}: ${e?.error?.message || res.statusText}`);
-  }
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e?.error?.message||res.statusText}`); }
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content || "";
   const start = text.indexOf("{");
@@ -98,12 +87,10 @@ async function callAI(prompt) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-// ── Storage ───────────────────────────────────────────────────
-const STORAGE_KEY = "pathnote_profile_v1";
+const STORAGE_KEY = "pathnote_profile_v2";
 function loadProfile() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } }
 function saveProfile(p) { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); }
 
-// ── Components ────────────────────────────────────────────────
 function Bar({ value, color = C.accent, height = 6 }) {
   return (
     <div style={{ background: C.border, borderRadius: 99, height, overflow: "hidden" }}>
@@ -112,22 +99,31 @@ function Bar({ value, color = C.accent, height = 6 }) {
   );
 }
 
-function RadarChart({ data, size = 200 }) {
-  const cx = size/2, cy = size/2, r = size*0.36;
-  const n = data.length;
-  if (n < 3) return null;
-  const angle = i => (Math.PI*2*i)/n - Math.PI/2;
-  const pt = (i, ratio) => ({ x: cx+r*ratio*Math.cos(angle(i)), y: cy+r*ratio*Math.sin(angle(i)) });
+function SkillBars({ skillMap }) {
+  const cats = SKILL_CATS.map(cat => ({ ...cat, mySkills: cat.skills.filter(s => skillMap[s]) })).filter(c => c.mySkills.length > 0);
+  if (cats.length === 0) return <div style={{ color: C.muted, fontSize: 13 }}>スキルが登録されていません</div>;
   return (
-    <svg width={size} height={size}>
-      {[0.25,0.5,0.75,1].map(rat => (
-        <polygon key={rat} points={data.map((_,i)=>{ const p=pt(i,rat); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke={C.border} strokeWidth={1}/>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {cats.map(cat => (
+        <div key={cat.label}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+            <span style={{ fontSize: 14 }}>{cat.icon}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: cat.color }}>{cat.label}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {cat.mySkills.map(skill => (
+              <div key={skill}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.sub, marginBottom: 4 }}>
+                  <span>{skill}</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: 11, color: C.muted }}>{skillMap[skill]}</span>
+                </div>
+                <Bar value={YEAR_TO_NUM[skillMap[skill]] || 0} color={cat.color} height={6} />
+              </div>
+            ))}
+          </div>
+        </div>
       ))}
-      {data.map((_,i)=>{ const p=pt(i,1); return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={C.border} strokeWidth={1}/>; })}
-      <polygon points={data.map((d,i)=>{ const p=pt(i,d.value/100); return `${p.x},${p.y}`; }).join(" ")} fill={`${C.accent}18`} stroke={C.accent} strokeWidth={2}/>
-      {data.map((d,i)=>{ const p=pt(i,d.value/100); return <circle key={i} cx={p.x} cy={p.y} r={3} fill={C.accent}/>; })}
-      {data.map((d,i)=>{ const p=pt(i,1.26); return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize={8} fill={C.sub} fontFamily={FONT_BODY}>{d.label}</text>; })}
-    </svg>
+    </div>
   );
 }
 
@@ -139,7 +135,7 @@ function AILoading() {
     const iv = setInterval(() => setProgress(prev => prev >= 95 ? 95 : prev + (prev < 40 ? 3 : prev < 70 ? 1.5 : 0.5)), 200);
     return () => clearInterval(iv);
   }, []);
-  useEffect(() => { setPhase(Math.min(Math.floor(progress/25), 3)); }, [progress]);
+  useEffect(() => { setPhase(Math.min(Math.floor(progress / 25), 3)); }, [progress]);
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(248,249,252,0.95)", zIndex:1000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:20 }}>
       <img src={logoPathnote} alt="PathNote" style={{ width:56, height:56, objectFit:"contain" }} />
@@ -161,39 +157,29 @@ function AILoading() {
   );
 }
 
-// ── Tag component ─────────────────────────────────────────────
 function Tag({ label, onRemove, color = C.accent }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:20, background:`${color}15`, border:`1px solid ${color}33`, fontSize:12, color:color }}>
       {label}
-      {onRemove && (
-        <button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:color, fontSize:14, lineHeight:1, padding:0, display:"flex", alignItems:"center" }}>×</button>
-      )}
+      {onRemove && <button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:color, fontSize:14, lineHeight:1, padding:0 }}>×</button>}
     </div>
   );
 }
 
-// ══════════════════════════════════════════════════════════════
 export default function App() {
   const [page, setPage] = useState("loading");
-  const [step, setStep] = useState(1); // 1=profile, 2=skills, 3=traits
+  const [step, setStep] = useState(1);
   const [profile, setProfile] = useState(null);
-
-  // Profile inputs
   const [currentJob, setCurrentJob] = useState("");
   const [position, setPosition] = useState("");
   const [age, setAge] = useState("");
   const [income, setIncome] = useState("");
-
   const [skillMap, setSkillMap] = useState({});
   const [traits, setTraits] = useState([]);
   const [aiSuggest, setAiSuggest] = useState(null);
-
-  // Customizable goal skills
-  const [goalSkills, setGoalSkills] = useState([]); // [{ id, label, type }]
+  const [goalSkills, setGoalSkills] = useState([]);
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
-
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -228,49 +214,35 @@ export default function App() {
   };
 
   const toggleSkill = skill => {
-    setSkillMap(prev => {
-      const n = {...prev};
-      if (n[skill]) delete n[skill]; else n[skill] = "半年未満";
-      return n;
-    });
+    setSkillMap(prev => { const n={...prev}; if(n[skill]) delete n[skill]; else n[skill]="半年未満"; return n; });
   };
   const setYears = (skill, y) => setSkillMap(prev => ({...prev, [skill]: y}));
   const toggleTrait = id => setTraits(prev => prev.includes(id) ? prev.filter(t=>t!==id) : [...prev, id]);
 
-  // Goal skill management
-  const addGoalSkill = (skill) => {
-    if (!goalSkills.find(s => s.label === skill)) {
-      setGoalSkills(prev => [...prev, { id: Date.now(), label: skill, type: "custom" }]);
-    }
+  const addGoalSkill = skill => {
+    if (!goalSkills.find(s => s.label === skill)) setGoalSkills(prev => [...prev, { id: Date.now(), label: skill, type: "custom" }]);
   };
-  const removeGoalSkill = (id) => setGoalSkills(prev => prev.filter(s => s.id !== id));
+  const removeGoalSkill = id => setGoalSkills(prev => prev.filter(s => s.id !== id));
 
   const allSkills = SKILL_CATS.flatMap(cat => cat.skills);
-  const filteredSkills = allSkills.filter(s =>
-    s.includes(pickerSearch) && !goalSkills.find(g => g.label === s)
-  );
+  const filteredSkills = allSkills.filter(s => s.includes(pickerSearch) && !goalSkills.find(g => g.label === s));
 
   const goAnalyze = async () => {
     setAiLoading(true); setAiError("");
     try {
       const skillList = Object.entries(skillMap).map(([k,v])=>`${k}(${v})`).join(", ") || "なし";
       const traitLabels = TRAIT_CATS.flatMap(c=>c.traits).filter(t=>traits.includes(t.id)).map(t=>t.label).join(", ") || "なし";
-      const prompt = `You are a career advisor. Analyze the following person and suggest career goals. Respond ONLY with valid JSON.
+      const prompt = `You are a career advisor. Analyze this person and suggest career goals. Respond ONLY with valid JSON, no other text.
 
-Current job: ${currentJob || "未入力"}
-Position: ${position || "未入力"}
-Age: ${age || "未入力"}
-Income: ${income || "未入力"}
+Current job: ${currentJob||"未入力"}, Position: ${position||"未入力"}, Age: ${age||"未入力"}, Income: ${income||"未入力"}
 Skills: ${skillList}
 Personality: ${traitLabels}
 
-Return ONLY this JSON (no explanation):
-{"summary":"2〜3文の現状分析（日本語）","radarData":[{"label":"コミュ","value":40},{"label":"思考分析","value":30},{"label":"マネジメント","value":20},{"label":"クリエイティブ","value":35},{"label":"営業マーケ","value":25},{"label":"専門技術","value":30},{"label":"ビジネス","value":50}],"suggestions":[{"type":"job","title":"職種名","reason":"理由（日本語1文）","fit":85,"recommendedSkills":["スキル1","スキル2","スキル3"]},{"type":"job","title":"職種名2","reason":"理由","fit":72,"recommendedSkills":["スキル1","スキル2"]},{"type":"skill","title":"スキル名","reason":"理由","fit":90,"recommendedSkills":["スキル1","スキル2"]},{"type":"skill","title":"スキル名2","reason":"理由","fit":78,"recommendedSkills":["スキル1","スキル2"]}]}
+Return ONLY this JSON:
+{"summary":"現状の強みと課題（日本語2〜3文）","suggestions":[{"type":"job","title":"職種名","reason":"理由（日本語1文）","fit":85,"recommendedSkills":["スキル1","スキル2","スキル3"]},{"type":"job","title":"職種名2","reason":"理由","fit":72,"recommendedSkills":["スキル1","スキル2"]},{"type":"skill","title":"スキル名","reason":"理由","fit":90,"recommendedSkills":["スキル1","スキル2"]},{"type":"skill","title":"スキル名2","reason":"理由","fit":78,"recommendedSkills":["スキル1","スキル2"]}]}
 
-Rules: all values 0-100 integers, exactly 4 suggestions, exactly 7 radarData items, recommendedSkills 2-4 items each, JSON only.`;
-
+Rules: fit is 0-100 integer, exactly 4 suggestions, recommendedSkills 2-4 items, all text in Japanese except keys, JSON only.`;
       const result = await callAI(prompt);
-      if (!Array.isArray(result.radarData)) result.radarData = [];
       if (!Array.isArray(result.suggestions)) result.suggestions = [];
       setAiSuggest(result);
       persist({ skillMap, traits, currentJob, position, age, income, aiSuggest: result }, "ai-suggest");
@@ -278,9 +250,9 @@ Rules: all values 0-100 integers, exactly 4 suggestions, exactly 7 radarData ite
     finally { setAiLoading(false); }
   };
 
-  const selectGoalWithSkills = (suggestion) => {
+  const selectGoalWithSkills = suggestion => {
     setSelectedGoal(suggestion);
-    const recommended = (suggestion.recommendedSkills || []).map((s, i) => ({ id: Date.now() + i, label: s, type: "ai" }));
+    const recommended = (suggestion.recommendedSkills||[]).map((s,i) => ({ id: Date.now()+i, label: s, type: "ai" }));
     setGoalSkills(recommended);
     persist({ goal: suggestion, goalSkills: recommended });
     setPage("goal-customize");
@@ -293,16 +265,15 @@ Rules: all values 0-100 integers, exactly 4 suggestions, exactly 7 radarData ite
       const targetSkills = goalSkills.map(s => s.label).join(", ");
       const prompt = `You are a career advisor. Create a learning roadmap. Respond ONLY with valid JSON.
 
-Current job: ${currentJob || "未入力"}, Position: ${position || "未入力"}, Age: ${age || "未入力"}
+Current job: ${currentJob||"未入力"}, Position: ${position||"未入力"}, Age: ${age||"未入力"}
 Current skills: ${skillList}
 Goal: ${selectedGoal?.title}
-Target skills to acquire: ${targetSkills}
+Target skills: ${targetSkills}
 
 Return ONLY this JSON:
 {"goal":"${selectedGoal?.title}","overview":"概要（日本語1〜2文）","steps":[{"phase":1,"title":"フェーズ名","months":"1〜2ヶ月","skills":["スキル1"],"actions":["アクション1","アクション2"],"milestone":"達成指標","done":false,"doneAt":null}]}
 
-Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
-
+Rules: 3-4 steps, all text in Japanese except keys, JSON only.`;
       const result = await callAI(prompt);
       if (!Array.isArray(result.steps)) result.steps = [];
       result.steps = result.steps.map(s => ({...s, done:false, doneAt:null}));
@@ -313,33 +284,18 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
   };
 
   const toggleStep = idx => {
-    const updated = {...roadmap, steps: roadmap.steps.map((s,i) =>
-      i===idx ? {...s, done:!s.done, doneAt:!s.done?new Date().toISOString():null} : s
-    )};
+    const updated = {...roadmap, steps: roadmap.steps.map((s,i) => i===idx ? {...s, done:!s.done, doneAt:!s.done?new Date().toISOString():null} : s)};
     setRoadmap(updated);
     persist({ roadmap: updated });
   };
-
-  const radarFromSkillMap = sm => SKILL_CATS.map(cat => {
-    const vals = cat.skills.filter(s=>sm[s]).map(s=>YEAR_TO_NUM[sm[s]]||0);
-    return { label: cat.label.slice(0,5), value: vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : 0 };
-  });
 
   const doneCount = roadmap ? roadmap.steps.filter(s=>s.done).length : 0;
   const totalSteps = roadmap ? roadmap.steps.length : 0;
   const progress = totalSteps ? Math.round((doneCount/totalSteps)*100) : 0;
 
-  // ── Input style ───────────────────────────────────────────
-  const inputStyle = {
-    width:"100%", padding:"10px 14px",
-    background:C.bg, border:`1px solid ${C.border}`,
-    borderRadius:10, color:C.text,
-    fontSize:14, fontFamily:FONT_BODY,
-    outline:"none", transition:"border 0.2s",
-  };
+  const inputStyle = { width:"100%", padding:"10px 14px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:14, fontFamily:FONT_BODY, outline:"none", transition:"border 0.2s" };
   const selectStyle = { ...inputStyle, cursor:"pointer" };
 
-  // ── Shell ──────────────────────────────────────────────────
   const shell = children => (
     <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:FONT_BODY }}>
       <style>{`
@@ -358,49 +314,33 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
           <img src={logoPathnote} alt="PathNote" style={{ width:32, height:32, objectFit:"contain" }} />
           <span style={{ fontWeight:700, fontSize:17, color:C.text, letterSpacing:"-0.02em" }}>PathNote</span>
         </div>
-        {profile && (
-          <button onClick={()=>setPage("dashboard")} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 14px", color:C.sub, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>
-            マイページ
-          </button>
-        )}
+        {profile && <button onClick={()=>setPage("dashboard")} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 14px", color:C.sub, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>マイページ</button>}
       </nav>
       <div style={{ maxWidth:760, margin:"0 auto", padding:"32px 20px" }}>{children}</div>
     </div>
   );
 
-  const stepLabel = (n, label) => (
-    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-      <div style={{ width:22, height:22, borderRadius:"50%", background:C.accent, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, flexShrink:0 }}>{n}</div>
-      <span style={{ fontSize:11, fontWeight:600, color:C.accent, letterSpacing:"0.08em" }}>{label}</span>
-    </div>
-  );
-
-  // ── Loading ────────────────────────────────────────────────
   if (page === "loading") return shell(
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"60vh", gap:12, color:C.muted }}>
       <div style={{ width:18, height:18, border:`2px solid ${C.border}`, borderTopColor:C.accent, borderRadius:"50%", animation:"spin .8s linear infinite" }}/>読み込み中...
     </div>
   );
 
-  // ── Skill Input ────────────────────────────────────────────
   if (page === "skill-input") return shell(
     <div style={{ animation:"fadeUp 0.4s ease" }}>
-      {/* Step tabs */}
       <div style={{ display:"flex", gap:4, background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:4, marginBottom:28 }}>
-        {[["1","プロフィール"],["2","スキル登録"],["3","志向性"]].map(([n, label], i) => (
+        {[["1","プロフィール"],["2","スキル登録"],["3","志向性"]].map(([n,label],i) => (
           <div key={n} style={{ flex:1, padding:"8px 0", borderRadius:8, background:step===i+1?C.accentL:"transparent", color:step===i+1?C.accent:C.muted, textAlign:"center", fontSize:13, fontWeight:step===i+1?600:400, transition:"all 0.2s" }}>
             {n}. {label}
           </div>
         ))}
       </div>
 
-      {/* Step 1: Profile */}
       {step === 1 && (
         <>
-          {stepLabel(1, "PROFILE")}
+          <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:6 }}>STEP 01</div>
           <h1 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>現在のプロフィールを入力</h1>
           <p style={{ color:C.sub, fontSize:14, marginBottom:24 }}>入力するほどAIの提案精度が上がります（任意）</p>
-
           <div style={{ display:"flex", flexDirection:"column", gap:16, marginBottom:28 }}>
             <div>
               <label style={{ display:"block", fontSize:12, fontWeight:600, color:C.sub, marginBottom:6 }}>現在の職種・仕事内容</label>
@@ -427,21 +367,18 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
               </select>
             </div>
           </div>
-
           <button onClick={()=>setStep(2)} style={{ width:"100%", padding:14, background:C.accent, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:15, fontFamily:FONT_BODY, cursor:"pointer" }}>
             次へ：スキル登録 →
           </button>
         </>
       )}
 
-      {/* Step 2: Skills */}
       {step === 2 && (
         <>
-          {stepLabel(2, "SKILLS")}
+          <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:6 }}>STEP 02</div>
           <h1 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>あなたのスキルを登録</h1>
           <p style={{ color:C.sub, fontSize:14, marginBottom:6 }}>経験・得意なことを選んでください</p>
           <div style={{ color:C.accent, fontFamily:FONT_MONO, fontSize:12, marginBottom:20, fontWeight:600 }}>{Object.keys(skillMap).length} 個選択中</div>
-
           {SKILL_CATS.map(cat=>(
             <div key={cat.label} style={{ marginBottom:22 }}>
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
@@ -458,8 +395,7 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
                         <span style={{ fontSize:13, color:sel?C.text:C.sub }}>{skill}</span>
                       </div>
                       {sel && (
-                        <select value={skillMap[skill]} onChange={e=>setYears(skill,e.target.value)}
-                          style={{ width:"100%", padding:"4px 6px", background:C.bg, border:`1px solid ${cat.color}44`, borderRadius:6, color:C.text, fontSize:11, fontFamily:FONT_BODY, cursor:"pointer" }}>
+                        <select value={skillMap[skill]} onChange={e=>setYears(skill,e.target.value)} style={{ width:"100%", padding:"4px 6px", background:C.bg, border:`1px solid ${cat.color}44`, borderRadius:6, color:C.text, fontSize:11, fontFamily:FONT_BODY, cursor:"pointer" }}>
                           {YEAR_OPTS.map(y=><option key={y} value={y}>{y}</option>)}
                         </select>
                       )}
@@ -469,7 +405,6 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
               </div>
             </div>
           ))}
-
           <div style={{ display:"flex", gap:12 }}>
             <button onClick={()=>setStep(1)} style={{ flex:1, padding:13, background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, color:C.sub, cursor:"pointer", fontSize:14, fontFamily:FONT_BODY }}>← 戻る</button>
             <button onClick={()=>setStep(3)} style={{ flex:2, padding:13, background:C.accent, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, fontFamily:FONT_BODY, cursor:"pointer" }}>次へ：志向性 →</button>
@@ -477,14 +412,12 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
         </>
       )}
 
-      {/* Step 3: Traits */}
       {step === 3 && (
         <>
-          {stepLabel(3, "PERSONALITY")}
+          <div style={{ fontSize:11, fontWeight:700, color:C.gold, letterSpacing:"0.1em", marginBottom:6 }}>STEP 03</div>
           <h1 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>あなたの志向性</h1>
           <p style={{ color:C.sub, fontSize:14, marginBottom:6 }}>当てはまるものをすべて選んでください</p>
           <div style={{ color:C.gold, fontFamily:FONT_MONO, fontSize:12, marginBottom:20, fontWeight:600 }}>{traits.length} 個選択中</div>
-
           {TRAIT_CATS.map(cat=>(
             <div key={cat.label} style={{ marginBottom:24 }}>
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
@@ -495,8 +428,7 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
                 {cat.traits.map(t=>{
                   const sel = traits.includes(t.id);
                   return (
-                    <div key={t.id} onClick={()=>toggleTrait(t.id)}
-                      style={{ border:`1.5px solid ${sel?C.gold:C.border}`, background:sel?C.goldL:C.surface, borderRadius:10, padding:"11px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:10, transition:"all 0.2s" }}>
+                    <div key={t.id} onClick={()=>toggleTrait(t.id)} style={{ border:`1.5px solid ${sel?C.gold:C.border}`, background:sel?C.goldL:C.surface, borderRadius:10, padding:"11px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:10, transition:"all 0.2s" }}>
                       <span style={{ fontSize:16 }}>{t.icon}</span>
                       <span style={{ fontSize:13, color:sel?C.text:C.sub }}>{t.label}</span>
                       {sel && <div style={{ marginLeft:"auto", width:16, height:16, borderRadius:"50%", background:C.gold, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#fff", flexShrink:0 }}>✓</div>}
@@ -506,24 +438,19 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
               </div>
             </div>
           ))}
-
           {aiError && <div style={{ color:C.red, background:C.redL, border:`1px solid ${C.red}44`, borderRadius:8, padding:"10px 14px", fontSize:12, marginBottom:16 }}>{aiError}</div>}
-
           <div style={{ display:"flex", gap:12 }}>
             <button onClick={()=>setStep(2)} style={{ flex:1, padding:13, background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, color:C.sub, cursor:"pointer", fontSize:14, fontFamily:FONT_BODY }}>← 戻る</button>
-            <button onClick={goAnalyze} disabled={aiLoading} style={{ flex:2, padding:13, background:`linear-gradient(135deg,${C.accent},#7B8FFF)`, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, fontFamily:FONT_BODY, cursor:"pointer" }}>
-              ✨ AIで分析・目標提案へ
-            </button>
+            <button onClick={goAnalyze} disabled={aiLoading} style={{ flex:2, padding:13, background:`linear-gradient(135deg,${C.accent},#7B8FFF)`, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, fontFamily:FONT_BODY, cursor:"pointer" }}>✨ AIで分析・目標提案へ</button>
           </div>
         </>
       )}
     </div>
   );
 
-  // ── AI Suggest ─────────────────────────────────────────────
   if (page === "ai-suggest") {
     const suggest = aiSuggest || profile?.aiSuggest;
-    const radar = Array.isArray(suggest?.radarData) ? suggest.radarData : radarFromSkillMap(skillMap);
+    const sm = skillMap || profile?.skillMap || {};
     return shell(
       <div style={{ animation:"fadeUp 0.4s ease" }}>
         <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:6 }}>ANALYSIS</div>
@@ -531,44 +458,32 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
         <p style={{ color:C.sub, fontSize:14, marginBottom:24 }}>AIがプロフィールとスキルを分析しました</p>
 
         {/* Profile summary */}
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:18, marginBottom:20, display:"flex", flexWrap:"wrap", gap:10 }}>
-          {[
-            { label:"職種", value:currentJob||profile?.currentJob||"—" },
-            { label:"ポジション", value:position||profile?.position||"—" },
-            { label:"年齢", value:age ? `${age}歳` : profile?.age ? `${profile.age}歳` : "—" },
-            { label:"年収", value:income||profile?.income||"—" },
-          ].map(item=>(
-            <div key={item.label} style={{ background:C.bg, borderRadius:8, padding:"8px 14px", minWidth:100 }}>
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:18, marginBottom:20, display:"flex", flexWrap:"wrap", gap:10, boxShadow:C.shadow }}>
+          {[{label:"職種",value:currentJob||"—"},{label:"ポジション",value:position||"—"},{label:"年齢",value:age?`${age}歳`:"—"},{label:"年収",value:income||"—"}].map(item=>(
+            <div key={item.label} style={{ background:C.bg, borderRadius:8, padding:"8px 14px" }}>
               <div style={{ fontSize:10, color:C.muted, marginBottom:2 }}>{item.label}</div>
               <div style={{ fontSize:13, fontWeight:600, color:C.text }}>{item.value}</div>
             </div>
           ))}
         </div>
 
-        {/* Radar + summary */}
-        <div style={{ display:"flex", gap:20, flexWrap:"wrap", background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:24, marginBottom:20, boxShadow:C.shadow }}>
-          <div style={{ display:"flex", justifyContent:"center", alignItems:"center" }}>
-            <RadarChart data={radar} size={190}/>
-          </div>
-          <div style={{ flex:1, minWidth:180 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:C.gold, marginBottom:8 }}>AI分析コメント</div>
-            <p style={{ color:C.sub, fontSize:14, lineHeight:1.8, marginBottom:14 }}>{suggest?.summary}</p>
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {radar.map(d=>(
-                <div key={d.label}>
-                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:C.muted, marginBottom:2 }}><span>{d.label}</span><span style={{ fontFamily:FONT_MONO }}>{d.value}</span></div>
-                  <Bar value={d.value} color={C.accent} height={4}/>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* AI comment */}
+        <div style={{ background:C.goldL, border:`1px solid ${C.gold}44`, borderRadius:14, padding:20, marginBottom:20 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:C.gold, marginBottom:8 }}>💡 AI分析コメント</div>
+          <p style={{ color:C.sub, fontSize:14, lineHeight:1.8 }}>{suggest?.summary}</p>
         </div>
 
+        {/* Current skills */}
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:20, marginBottom:20, boxShadow:C.shadow }}>
+          <div style={{ fontSize:12, fontWeight:700, color:C.sub, marginBottom:16 }}>📊 現在のスキル</div>
+          <SkillBars skillMap={sm} />
+        </div>
+
+        {/* Suggestions */}
         <div style={{ fontSize:11, fontWeight:700, color:C.sub, letterSpacing:"0.08em", marginBottom:12 }}>目標を選んでカスタマイズ</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:24 }}>
           {(suggest?.suggestions||[]).map((s,i)=>(
-            <button key={i} onClick={()=>selectGoalWithSkills(s)}
-              style={{ textAlign:"left", padding:18, background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:14, cursor:"pointer", fontFamily:FONT_BODY, transition:"all 0.2s", boxShadow:C.shadow }}>
+            <button key={i} onClick={()=>selectGoalWithSkills(s)} style={{ textAlign:"left", padding:18, background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:14, cursor:"pointer", fontFamily:FONT_BODY, transition:"all 0.2s", boxShadow:C.shadow }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
                 <span style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:s.type==="job"?C.accentL:C.greenL, color:s.type==="job"?C.accent:C.green, fontWeight:600 }}>{s.type==="job"?"🎯 職種":"📚 スキル"}</span>
                 <span style={{ fontFamily:FONT_MONO, fontSize:12, color:C.gold, fontWeight:600 }}>{s.fit}%</span>
@@ -581,50 +496,34 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
         </div>
 
         {aiError && <div style={{ color:C.red, background:C.redL, border:`1px solid ${C.red}44`, borderRadius:8, padding:"10px 14px", fontSize:12, marginBottom:16 }}>{aiError}</div>}
-
-        <button onClick={()=>{ setStep(1); setPage("skill-input"); }}
-          style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 20px", color:C.sub, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>
-          ← プロフィール・スキルを修正する
-        </button>
+        <button onClick={()=>{ setStep(1); setPage("skill-input"); }} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 20px", color:C.sub, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>← プロフィール・スキルを修正する</button>
       </div>
     );
   }
 
-  // ── Goal Customize ─────────────────────────────────────────
   if (page === "goal-customize") return shell(
     <div style={{ animation:"fadeUp 0.4s ease" }}>
       <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:6 }}>GOAL SETUP</div>
       <h1 style={{ fontSize:22, fontWeight:700, marginBottom:4 }}>目標スキルをカスタマイズ</h1>
       <p style={{ color:C.sub, fontSize:14, marginBottom:4 }}>目標：<span style={{ color:C.gold, fontWeight:600 }}>{selectedGoal?.title}</span></p>
-      <p style={{ color:C.sub, fontSize:13, marginBottom:24 }}>AIが提案したスキルを編集できます。不要なものは削除、追加したいものは選んでください。</p>
+      <p style={{ color:C.sub, fontSize:13, marginBottom:24 }}>AIが提案したスキルを編集できます。不要なものは削除、追加も自由です。</p>
 
-      {/* Current goal skills */}
       <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:20, marginBottom:20, boxShadow:C.shadow }}>
         <div style={{ fontSize:12, fontWeight:700, color:C.sub, marginBottom:12 }}>選択中の目標スキル</div>
-        {goalSkills.length === 0 ? (
-          <div style={{ color:C.muted, fontSize:13 }}>スキルが選択されていません</div>
-        ) : (
-          <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-            {goalSkills.map(s=>(
-              <Tag key={s.id} label={s.label} color={s.type==="ai"?C.accent:C.green} onRemove={()=>removeGoalSkill(s.id)}/>
-            ))}
-          </div>
-        )}
+        {goalSkills.length === 0
+          ? <div style={{ color:C.muted, fontSize:13 }}>スキルが選択されていません</div>
+          : <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+              {goalSkills.map(s=><Tag key={s.id} label={s.label} color={s.type==="ai"?C.accent:C.green} onRemove={()=>removeGoalSkill(s.id)}/>)}
+            </div>
+        }
       </div>
 
-      {/* Add skills */}
       <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:20, marginBottom:24, boxShadow:C.shadow }}>
         <div style={{ fontSize:12, fontWeight:700, color:C.sub, marginBottom:12 }}>スキルを追加する</div>
-        <input
-          value={pickerSearch}
-          onChange={e=>setPickerSearch(e.target.value)}
-          placeholder="スキル名で検索..."
-          style={{ ...inputStyle, marginBottom:12 }}
-        />
-        <div style={{ display:"flex", flexWrap:"wrap", gap:8, maxHeight:200, overflowY:"auto" }}>
-          {filteredSkills.slice(0, 30).map(skill=>(
-            <button key={skill} onClick={()=>addGoalSkill(skill)}
-              style={{ padding:"5px 12px", borderRadius:20, border:`1px solid ${C.border}`, background:C.bg, color:C.sub, cursor:"pointer", fontSize:12, fontFamily:FONT_BODY, transition:"all 0.15s" }}>
+        <input value={pickerSearch} onChange={e=>setPickerSearch(e.target.value)} placeholder="スキル名で検索..." style={{ ...inputStyle, marginBottom:12 }} />
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, maxHeight:180, overflowY:"auto" }}>
+          {filteredSkills.slice(0,30).map(skill=>(
+            <button key={skill} onClick={()=>addGoalSkill(skill)} style={{ padding:"5px 12px", borderRadius:20, border:`1px solid ${C.border}`, background:C.bg, color:C.sub, cursor:"pointer", fontSize:12, fontFamily:FONT_BODY }}>
               + {skill}
             </button>
           ))}
@@ -632,21 +531,13 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
       </div>
 
       {aiError && <div style={{ color:C.red, background:C.redL, border:`1px solid ${C.red}44`, borderRadius:8, padding:"10px 14px", fontSize:12, marginBottom:16 }}>{aiError}</div>}
-
       <div style={{ display:"flex", gap:12 }}>
-        <button onClick={goRoadmap} disabled={aiLoading || goalSkills.length===0}
-          style={{ flex:2, padding:14, background:goalSkills.length>0?`linear-gradient(135deg,${C.accent},#7B8FFF)`:C.border, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, fontFamily:FONT_BODY, cursor:goalSkills.length>0?"pointer":"not-allowed" }}>
-          🗺️ ロードマップを生成する
-        </button>
-        <button onClick={()=>setPage("ai-suggest")}
-          style={{ flex:1, padding:14, background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, color:C.sub, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>
-          ← 目標を変える
-        </button>
+        <button onClick={goRoadmap} disabled={aiLoading||goalSkills.length===0} style={{ flex:2, padding:14, background:goalSkills.length>0?`linear-gradient(135deg,${C.accent},#7B8FFF)`:C.border, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, fontFamily:FONT_BODY, cursor:goalSkills.length>0?"pointer":"not-allowed" }}>🗺️ ロードマップを生成する</button>
+        <button onClick={()=>setPage("ai-suggest")} style={{ flex:1, padding:14, background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, color:C.sub, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>← 目標を変える</button>
       </div>
     </div>
   );
 
-  // ── Roadmap ────────────────────────────────────────────────
   if (page === "roadmap") return shell(
     <div style={{ animation:"fadeUp 0.4s ease" }}>
       <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:6 }}>ROADMAP</div>
@@ -654,9 +545,8 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
       <p style={{ color:C.sub, fontSize:14, marginBottom:4 }}>目標：<span style={{ color:C.gold, fontWeight:600 }}>{roadmap?.goal}</span></p>
       <p style={{ color:C.sub, fontSize:13, marginBottom:24 }}>{roadmap?.overview}</p>
 
-      {/* Target skills */}
       {goalSkills.length > 0 && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:16, marginBottom:20 }}>
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:16, marginBottom:20, boxShadow:C.shadow }}>
           <div style={{ fontSize:11, fontWeight:700, color:C.sub, marginBottom:10 }}>目標スキル</div>
           <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
             {goalSkills.map(s=><Tag key={s.id} label={s.label} color={s.type==="ai"?C.accent:C.green}/>)}
@@ -664,7 +554,6 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
         </div>
       )}
 
-      {/* Progress */}
       <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:18, marginBottom:20, boxShadow:C.shadow }}>
         <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
           <span style={{ fontSize:13, color:C.sub }}>達成度</span>
@@ -684,8 +573,7 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
                   <div style={{ color:C.muted, fontSize:12, marginTop:2 }}>{step.months} · {step.milestone}</div>
                 </div>
               </div>
-              <button onClick={()=>toggleStep(i)}
-                style={{ flexShrink:0, padding:"6px 14px", borderRadius:8, border:`1.5px solid ${step.done?C.green:C.border}`, background:step.done?C.greenL:C.bg, color:step.done?C.green:C.sub, cursor:"pointer", fontSize:12, fontFamily:FONT_BODY, whiteSpace:"nowrap", fontWeight:600 }}>
+              <button onClick={()=>toggleStep(i)} style={{ flexShrink:0, padding:"6px 14px", borderRadius:8, border:`1.5px solid ${step.done?C.green:C.border}`, background:step.done?C.greenL:C.bg, color:step.done?C.green:C.sub, cursor:"pointer", fontSize:12, fontFamily:FONT_BODY, whiteSpace:"nowrap", fontWeight:600 }}>
                 {step.done?"✓ 完了済み":"完了にする"}
               </button>
             </div>
@@ -693,9 +581,7 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
               {(step.skills||[]).map((sk,j)=><Tag key={j} label={sk} color={C.accent}/>)}
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-              {(step.actions||[]).map((a,j)=>(
-                <div key={j} style={{ fontSize:13, color:C.sub, paddingLeft:12, borderLeft:`2px solid ${C.border}` }}>▸ {a}</div>
-              ))}
+              {(step.actions||[]).map((a,j)=><div key={j} style={{ fontSize:13, color:C.sub, paddingLeft:12, borderLeft:`2px solid ${C.border}` }}>▸ {a}</div>)}
             </div>
             {step.doneAt && <div style={{ fontSize:11, color:C.green, marginTop:8, fontWeight:600 }}>✓ 完了: {new Date(step.doneAt).toLocaleDateString("ja-JP")}</div>}
           </div>
@@ -703,26 +589,17 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
       </div>
 
       <div style={{ display:"flex", gap:12 }}>
-        <button onClick={()=>persist({}, "dashboard")}
-          style={{ flex:1, padding:14, background:C.accent, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:FONT_BODY }}>
-          💾 保存してダッシュボードへ
-        </button>
-        <button onClick={()=>setPage("goal-customize")}
-          style={{ padding:"14px 18px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, color:C.sub, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>
-          ← スキルを変更
-        </button>
+        <button onClick={()=>persist({}, "dashboard")} style={{ flex:1, padding:14, background:C.accent, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:FONT_BODY }}>💾 保存してダッシュボードへ</button>
+        <button onClick={()=>setPage("goal-customize")} style={{ padding:"14px 18px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, color:C.sub, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>← スキルを変更</button>
       </div>
     </div>
   );
 
-  // ── Dashboard ──────────────────────────────────────────────
   if (page === "dashboard") {
     const p = profile||{};
     const sm = p.skillMap||{};
     const drm = p.roadmap||roadmap;
     const goal = p.goal||selectedGoal;
-    const radar = Array.isArray(p.aiSuggest?.radarData) ? p.aiSuggest.radarData : radarFromSkillMap(sm);
-    const skillCount = Object.keys(sm).length;
     const ddone = drm ? drm.steps.filter(s=>s.done).length : 0;
     const dtotal = drm ? drm.steps.length : 0;
     const dprog = dtotal ? Math.round((ddone/dtotal)*100) : 0;
@@ -731,20 +608,16 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
 
     return shell(
       <div style={{ animation:"fadeUp 0.4s ease" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24 }}>
           <div>
             <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:6 }}>DASHBOARD</div>
             <h1 style={{ fontSize:22, fontWeight:700 }}>マイキャリア</h1>
             <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>最終更新: {lastUpdate}</div>
           </div>
-          <button onClick={()=>{ setStep(1); setPage("skill-input"); }}
-            style={{ padding:"10px 18px", background:C.accentL, border:`1px solid ${C.accent}44`, borderRadius:10, color:C.accent, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY, fontWeight:600 }}>
-            + 情報を更新
-          </button>
+          <button onClick={()=>{ setStep(1); setPage("skill-input"); }} style={{ padding:"10px 18px", background:C.accentL, border:`1px solid ${C.accent}44`, borderRadius:10, color:C.accent, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY, fontWeight:600 }}>+ 情報を更新</button>
         </div>
 
-        {/* Profile bar */}
-        {(p.currentJob || p.position) && (
+        {(p.currentJob||p.position) && (
           <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 18px", marginBottom:20, display:"flex", flexWrap:"wrap", gap:12, alignItems:"center", boxShadow:C.shadow }}>
             {p.currentJob && <span style={{ fontSize:14, fontWeight:600 }}>{p.currentJob}</span>}
             {p.position && <span style={{ fontSize:12, color:C.sub, background:C.bg, padding:"3px 10px", borderRadius:20 }}>{p.position}</span>}
@@ -753,10 +626,9 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
           </div>
         )}
 
-        {/* Summary cards */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
           {[
-            { label:"登録スキル", value:skillCount, unit:"個", color:C.accent, bg:C.accentL },
+            { label:"登録スキル", value:Object.keys(sm).length, unit:"個", color:C.accent, bg:C.accentL },
             { label:"ロードマップ進捗", value:dprog, unit:"%", color:C.green, bg:C.greenL },
             { label:"次回チェック", value:nextCheck, unit:"", color:C.gold, bg:C.goldL, small:true },
           ].map(card=>(
@@ -769,30 +641,21 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
           ))}
         </div>
 
-        {/* Tabs */}
         <div style={{ display:"flex", gap:4, background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:4, marginBottom:24 }}>
           {[["overview","📊 概要"],["roadmap","🗺️ ロードマップ"],["skills","🧩 スキル"]].map(([t,label])=>(
-            <button key={t} onClick={()=>setActiveTab(t)}
-              style={{ flex:1, padding:"8px 0", borderRadius:8, border:"none", background:activeTab===t?C.accentL:"transparent", color:activeTab===t?C.accent:C.muted, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY, fontWeight:activeTab===t?600:400, transition:"all 0.2s" }}>
-              {label}
-            </button>
+            <button key={t} onClick={()=>setActiveTab(t)} style={{ flex:1, padding:"8px 0", borderRadius:8, border:"none", background:activeTab===t?C.accentL:"transparent", color:activeTab===t?C.accent:C.muted, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY, fontWeight:activeTab===t?600:400, transition:"all 0.2s" }}>{label}</button>
           ))}
         </div>
 
         {activeTab === "overview" && (
           <div>
-            <div style={{ display:"flex", gap:20, flexWrap:"wrap", background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:24, marginBottom:20, boxShadow:C.shadow }}>
-              <div style={{ display:"flex", justifyContent:"center" }}><RadarChart data={radar} size={190}/></div>
-              <div style={{ flex:1, minWidth:180 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:C.gold, marginBottom:10 }}>スキルバランス</div>
-                {radar.map(d=>(
-                  <div key={d.label} style={{ marginBottom:8 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:C.muted, marginBottom:3 }}><span>{d.label}</span><span style={{ fontFamily:FONT_MONO }}>{d.value}</span></div>
-                    <Bar value={d.value} color={C.accent} height={4}/>
-                  </div>
-                ))}
+            {/* AI comment */}
+            {p.aiSuggest?.summary && (
+              <div style={{ background:C.goldL, border:`1px solid ${C.gold}44`, borderRadius:14, padding:20, marginBottom:20 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:C.gold, marginBottom:8 }}>💡 AI分析コメント</div>
+                <p style={{ color:C.sub, fontSize:14, lineHeight:1.8 }}>{p.aiSuggest.summary}</p>
               </div>
-            </div>
+            )}
 
             {goal && (
               <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:20, marginBottom:20, boxShadow:C.shadow }}>
@@ -807,9 +670,9 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
                     <div style={{ color:C.muted, fontSize:11 }}>{ddone}/{dtotal}完了</div>
                   </div>}
                 </div>
-                {(p.goalSkills||goalSkills||[]).length > 0 && (
+                {(p.goalSkills||[]).length > 0 && (
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-                    {(p.goalSkills||goalSkills||[]).map(s=><Tag key={s.id} label={s.label} color={s.type==="ai"?C.accent:C.green}/>)}
+                    {(p.goalSkills||[]).map(s=><Tag key={s.id} label={s.label} color={s.type==="ai"?C.accent:C.green}/>)}
                   </div>
                 )}
                 {drm && <Bar value={dprog} color={C.green} height={6}/>}
@@ -844,8 +707,7 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
                           <div style={{ color:C.muted, fontSize:11 }}>{step.months}</div>
                         </div>
                       </div>
-                      <button onClick={()=>toggleStep(i)}
-                        style={{ padding:"5px 12px", borderRadius:7, border:`1.5px solid ${step.done?C.green:C.border}`, background:step.done?C.greenL:C.bg, color:step.done?C.green:C.sub, cursor:"pointer", fontSize:11, fontFamily:FONT_BODY, fontWeight:600 }}>
+                      <button onClick={()=>toggleStep(i)} style={{ padding:"5px 12px", borderRadius:7, border:`1.5px solid ${step.done?C.green:C.border}`, background:step.done?C.greenL:C.bg, color:step.done?C.green:C.sub, cursor:"pointer", fontSize:11, fontFamily:FONT_BODY, fontWeight:600 }}>
                         {step.done?"✓ 完了":"完了にする"}
                       </button>
                     </div>
@@ -868,32 +730,10 @@ Rules: 3-4 steps, all text in Japanese except JSON keys, JSON only.`;
 
         {activeTab === "skills" && (
           <div>
-            {skillCount === 0 ? (
-              <div style={{ textAlign:"center", padding:40, color:C.muted }}>スキルが登録されていません</div>
-            ) : (
-              SKILL_CATS.map(cat=>{
-                const mySkills = cat.skills.filter(s=>sm[s]);
-                if (!mySkills.length) return null;
-                return (
-                  <div key={cat.label} style={{ marginBottom:20 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
-                      <span>{cat.icon}</span>
-                      <span style={{ fontSize:13, fontWeight:600, color:cat.color }}>{cat.label}</span>
-                    </div>
-                    {mySkills.map(skill=>(
-                      <div key={skill} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 14px", marginBottom:6, boxShadow:C.shadow }}>
-                        <span style={{ fontSize:14 }}>{skill}</span>
-                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                          <div style={{ width:80 }}><Bar value={YEAR_TO_NUM[sm[skill]]||0} color={cat.color} height={4}/></div>
-                          <span style={{ fontFamily:FONT_MONO, fontSize:11, color:C.muted, minWidth:60, textAlign:"right" }}>{sm[skill]}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })
-            )}
-            <button onClick={()=>{ setStep(1); setPage("skill-input"); }} style={{ width:"100%", marginTop:8, padding:14, background:C.accent, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:FONT_BODY }}>✏️ スキルを編集する</button>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:24, boxShadow:C.shadow }}>
+              <SkillBars skillMap={sm} />
+            </div>
+            <button onClick={()=>{ setStep(2); setPage("skill-input"); }} style={{ width:"100%", marginTop:16, padding:14, background:C.accent, border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:FONT_BODY }}>✏️ スキルを編集する</button>
           </div>
         )}
       </div>
