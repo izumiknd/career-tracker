@@ -1,3 +1,4 @@
+import logoPathnote from './logo-pathnote.png';
 import { useState, useEffect, useRef } from "react";
 
 const C = {
@@ -325,7 +326,7 @@ Rules: steps must have 3 to 4 items, all text in Japanese except JSON keys, resp
       {aiLoading && <AILoading />}
       <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${C.accent},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>🧭</div>
+        <img src={logoPathnote} alt="PathNote" style={{ width:32, height:32, borderRadius:8, objectFit:"contain" }} />
           <span style={{ fontFamily:FONT_MONO, fontWeight:500, fontSize:15, letterSpacing:"0.05em", color:C.accent }}>PathNote</span>
         </div>
         {profile && (
