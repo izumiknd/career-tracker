@@ -86,7 +86,22 @@ async function callAIJSON(messages) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-// ── Small components ──────────────────────────────────────────
+// ── Bold text parser ──────────────────────────────────────────
+// **テキスト** を太字に変換するコンポーネント
+function BoldText({ text }) {
+  if (!text) return null;
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={i} style={{ fontWeight: 700, color: "inherit" }}>{part.slice(2, -2)}</strong>;
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
+}
 const Bar = ({ value, color = C.accent, height = 6 }) => (
   <div style={{ background: C.border, borderRadius: 99, height, overflow: "hidden" }}>
     <div style={{ width: `${Math.min(value,100)}%`, height: "100%", background: color, borderRadius: 99, transition: "width 0.8s ease" }} />
@@ -185,69 +200,77 @@ const THEMES = [
 ];
 
 // ── BASE SYSTEM PROMPT (JCDA経験代謝ベース) ──────────────────
-const BASE_SYSTEM = `あなたは国家資格キャリアコンサルタントです。JCDAの提唱する「経験代謝」の考え方に基づき、クライアントの自己理解を深めるカウンセリングを行います。
+const BASE_SYSTEM = `あなたは国家資格キャリアコンサルタントです。クライアントと1対1のカウンセリングセッションを行っています。
 
-【経験代謝とは】
-クライアントが自分の経験を語る中で、その経験に込められた意味や感情に気づき、自己概念（「自分はこういう人間だ」という認識）を更新していくプロセスです。
+【最重要ルール：質問の作り方】
+質問は「シンプルな一文」だけにしてください。
 
-【あなたの基本姿勢】
-・傾聴が最優先。クライアントの言葉をしっかり受け取ることが仕事です
-・アドバイス・提案・評価は絶対にしません
-・「こうしたほうがいい」「それは〜ですね（決めつけ）」はNGです
-・クライアントが自分で気づくことを支援します
+NGの例（絶対にやらない）：
+・「どんなことを考えていましたか、というと、〜ではありませんでしたか？」→ 自分で答えを示唆している
+・「〜でしたか？それとも〜でしたか？」→ 選択肢を与えている
+・「〜ということは、〜ということでしょうか？」→ 解釈を押しつけている
+・質問の後に補足説明を足す → 不要
 
-【会話のルール】
-・1メッセージにつき質問は必ず1つだけ
-・まず相手の言葉を受け取り（「〜なんですね」）、それから1つ問いかける
-・クライアントが使った言葉をそのまま使って返す（ミラーリング）
-・感情に寄り添う（「それはしんどかったですね」「嬉しかったんですね」）
-・「なぜ」より「どんな気持ちでしたか」「どんな場面でしたか」を使う
-・深掘りするとき：「もう少し聞かせていただけますか」「それはどういうことか、教えてもらえますか」
-・沈黙・短い返答もOK。焦らず「今、どんなことが浮かんでいますか」と問いかける
+OKの例：
+・「その時、どんな気持ちでしたか？」
+・「もう少し聞かせていただけますか？」
+・「具体的にはどんな場面でしたか？」
+・「そのとき、何が一番つらかったですか？」
+・「〇〇とおっしゃっていましたが、それはどういうことでしょう？」
 
-【文体】
-・敬語だが温かく自然な話し言葉（「〜ですね」「〜でしたか」「〜なんですね」）
-・1メッセージは2〜4文程度。短くていい。長い説明は不要
-・箇条書きは使わない。すべて会話文で
-・英語は使わない。すべて日本語で`;
+【基本姿勢】
+・傾聴が最優先。クライアントの言葉を受け取ることが仕事
+・アドバイス・提案・評価・解釈は絶対にしない
+・クライアントが自分で気づくことを支援する
+
+【会話の流れ】
+1. クライアントの言葉をそのまま繰り返す（ミラーリング）か、短く受け取る
+2. 感情に寄り添う一言を添える（「それはしんどかったですね」「嬉しかったんですね」）
+3. シンプルな質問を一つだけ投げかける
+
+【文体の厳格なルール】
+・自然な日本語の話し言葉で書く
+・1メッセージは2〜3文まで。それ以上は書かない
+・質問は一文・一問のみ。補足説明を足さない
+・箇条書きは使わない
+・英語・カタカナ専門用語は使わない
+・重要な言葉は **太字** にする（例：**やりがい**、**自分らしさ**）`;
 
 const buildSystemPrompt = (themeId, profileSummary) => {
   const theme = THEMES.find(t => t.id === themeId) || THEMES[5];
   const themeGuide = {
     moyo: `
 【今日のテーマ：仕事のもやもや】
-「もやもや」という感情の背景にある価値観や欲求を、一緒に探っていきます。
-・もやもやの具体的な場面を丁寧に聞く
-・「何がそんなに引っかかるんだろう」という気持ちに共感する
-・もやもやの裏にある「本当は〜したい」「〜を大切にしたい」という欲求を引き出す`,
+もやもやの背景にある感情・欲求を、一緒に探ります。
+・もやもやを感じた具体的な場面を聞く
+・「何がそんなに引っかかっているんだろう」という気持ちに共感する
+・評価・アドバイスは一切しない`,
     taisetu: `
 【今日のテーマ：仕事で大切にしていること】
-経験の中から、クライアントが無意識に大切にしてきたものを言語化するサポートをします。
+経験の中から、クライアントが大切にしてきたものを言語化するサポートをします。
 ・具体的なエピソードを通じて価値観を探る
-・「それをしているとき、どんな気持ちでしたか」で感情を引き出す
-・複数のエピソードに共通するパターンに気づいてもらう`,
+・「そのとき、どんな気持ちでしたか？」で感情を引き出す
+・複数のエピソードに共通するものに気づいてもらう`,
     tensyoku: `
 【今日のテーマ：転職について】
 転職の「理由」より「何を求めているか」を引き出すことに集中します。
 ・転職したい気持ちの背景にある感情や経験を丁寧に聞く
-・「何から離れたいのか」と「何に向かいたいのか」の両方を探る
 ・焦りや不安があれば、まずそこに共感する`,
     tsuyomi: `
-【今日のテーマ：強みを知る】
-クライアント自身が気づいていない強みを、経験談から引き出します。
-・「当たり前にやっていること」の中に強みが隠れていることを念頭に置く
-・褒められた経験・感謝された経験を具体的に聞く
-・「なぜそれができたと思いますか」ではなく「どんなことを考えながらやっていましたか」と聞く`,
+【今日のテーマ：自分の強みを知る】
+経験談から、気づいていない強みを引き出します。
+・褒められた・感謝された経験を具体的に聞く
+・「そのとき、何を意識していましたか？」と聞く
+・「なぜできたと思いますか？」のような解釈を求める質問はしない`,
     career: `
 【今日のテーマ：これからのキャリア】
-未来の話をしながら、現在の自己概念や価値観を探ります。
+未来の話をしながら、今の価値観や自己概念を探ります。
 ・「なりたい姿」より「どんな状態でいたいか」「何を感じていたいか」を聞く
-・過去の充実した経験と照らし合わせながら対話する
-・具体的なイメージがなくてもOK。「わからない」という気持ちも大切な出発点`,
+・「わからない」という気持ちも大切な出発点として受け取る`,
     free: `
 【今日のテーマ：自由対話】
-クライアントが話したいことを中心に、自然な流れでカウンセリングを進めます。
-・最初の話題を深掘りし、そこから自然にテーマを見つけていく
+クライアントが話したいことを中心に進めます。
+・最初の話題をじっくり深掘りする
 ・クライアントのペースを最優先する`,
   };
 
@@ -293,6 +316,13 @@ export default function App() {
   }, []);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  // AIが話し終わったらチャット入力欄にフォーカス
+  useEffect(() => {
+    if (!aiTyping && page === "phase2" && messages.length > 0) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [aiTyping, page]);
 
   const persist = (updates) => {
     const nd = { ...(data||{}), ...updates, savedAt: new Date().toISOString() };
@@ -379,22 +409,25 @@ export default function App() {
   const generateReport = async () => {
     setReportLoading(true);
     try {
-      const conversation = messages.map(m=>`${m.role==="user"?"ユーザー":"AI"}: ${m.content}`).join("\n");
+      const conversation = messages.map(m=>`${m.role==="user"?"クライアント":"コンサルタント"}: ${m.content}`).join("\n");
       const profileSummary = `職歴: ${careers.map(c=>`${c.company} ${c.role}`).join("、")}、スキル: ${Object.keys(skillMap).join("、")}`;
 
-      const prompt = `以下はキャリアコンサルティングの対話記録です。この内容をもとに、ユーザーの自己理解レポートを作成してください。JSONのみで返答してください。
+      const prompt = `以下はキャリアコンサルティングの対話記録です。この内容をもとに自己理解レポートを作成してください。JSONのみで返答してください（説明文・マークダウン不要）。
 
 プロフィール: ${profileSummary}
+テーマ: ${THEMES.find(t=>t.id===selectedTheme)?.label || "自由対話"}
 
 対話記録:
 ${conversation}
 
-以下のJSON形式のみで返答（説明文不要）:
-{"strengths":["強み1","強み2","強み3"],"softSkills":["ソフトスキル1","ソフトスキル2","ソフトスキル3"],"values":["価値観1","価値観2","価値観3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextSteps":["次のアクション1","次のアクション2","次のアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）"}`;
+以下のJSON形式のみで返答:
+{"strengths":["強み1","強み2","強み3"],"softSkills":["ソフトスキル1","ソフトスキル2","ソフトスキル3"],"values":["価値観1","価値観2","価値観3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextSteps":["次のアクション1","次のアクション2","次のアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）","insights":[{"label":"キーワード","text":"対話を通じて明確になったこと（1文）"}]}
+
+insightsは対話の中で特に重要な気づきを3〜5個抽出してください。`;
 
       const result = await callAIJSON([{ role: "user", content: prompt }]);
       setReport(result);
-      persist({ report: result, phase2Done: true, messages });
+      persist({ report: result, phase2Done: true, messages, selectedTheme });
       setPage("report");
     } catch(e) {
       alert(`レポート生成エラー: ${e.message}`);
@@ -835,7 +868,7 @@ ${conversation}
               border:msg.role==="user"?"none":`1px solid ${C.border}`,
               whiteSpace:"pre-wrap",
             }}>
-              {msg.content}
+              {msg.role === "assistant" ? <BoldText text={msg.content} /> : msg.content}
               {msg.role==="assistant" && aiTyping && i===messages.length-1 && msg.content && (
                 <span style={{ display:"inline-block", width:2, height:14, background:C.teal, marginLeft:2, animation:"blink 0.8s infinite", verticalAlign:"middle" }}/>
               )}
@@ -1021,9 +1054,34 @@ ${conversation}
               </div>
             </Card>
 
+            {/* Insights from consulting */}
+            {(r.insights||[]).length > 0 && (
+              <Card style={{ marginBottom:20, background:`linear-gradient(135deg,${C.tealL},#F0F4FF)`, border:`1px solid ${C.teal}33` }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+                  <span style={{ fontSize:18 }}>💡</span>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:700 }}>対話を通じて明確になったこと</div>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
+                      {THEMES.find(t=>t.id===d2.selectedTheme)?.label || "AIコンサルティング"} セッションより
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {(r.insights||[]).map((ins, i) => (
+                    <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 14px", background:"rgba(255,255,255,0.7)", borderRadius:10, border:`1px solid ${C.border}` }}>
+                      <div style={{ flexShrink:0, padding:"2px 8px", borderRadius:12, background:C.teal, color:"#fff", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>
+                        {ins.label}
+                      </div>
+                      <div style={{ fontSize:13, color:C.sub, lineHeight:1.7 }}>{ins.text}</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
             <div style={{ display:"flex", gap:12 }}>
-              <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("phase2"); startConsulting(); }} style={{ flex:1 }}>
-                💬 AI対話を続ける
+              <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ flex:1 }}>
+                💬 続けて話す
               </Btn>
               <Btn variant="secondary" onClick={()=>setPage("report")} style={{ flex:1 }}>
                 📄 レポートを確認
