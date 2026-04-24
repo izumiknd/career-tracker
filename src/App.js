@@ -330,7 +330,9 @@ Rules: steps must have 3 to 4 items, all text in Japanese except JSON keys, resp
           <span style={{ fontFamily:FONT_MONO, fontWeight:500, fontSize:15, letterSpacing:"0.05em", color:C.accent }}>PathNote</span>
         </div>
         {profile && (
-          <button onClick={()=>setPage("dashboard")} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 14px", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>
+          <button onClick={()=>sgit add .
+git commit -m "add PathNote logo"
+git push origin mainetPage("dashboard")} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 14px", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>
             マイページ
           </button>
         )}
