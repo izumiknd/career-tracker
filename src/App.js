@@ -106,7 +106,7 @@ async function callAI(prompt) {
 }
 
 // ── Storage ───────────────────────────────────────────────────
-const STORAGE_KEY = "skillpath_profile_v2";
+const STORAGE_KEY = "PathNote_profile_v2";
 function loadProfile() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; }
 }
@@ -326,7 +326,7 @@ Rules: steps must have 3 to 4 items, all text in Japanese except JSON keys, resp
       <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${C.accent},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>🧭</div>
-          <span style={{ fontFamily:FONT_MONO, fontWeight:500, fontSize:15, letterSpacing:"0.05em", color:C.accent }}>SkillPath</span>
+          <span style={{ fontFamily:FONT_MONO, fontWeight:500, fontSize:15, letterSpacing:"0.05em", color:C.accent }}>PathNote</span>
         </div>
         {profile && (
           <button onClick={()=>setPage("dashboard")} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 14px", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:FONT_BODY }}>
