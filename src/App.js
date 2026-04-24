@@ -132,43 +132,135 @@ const SKILL_CATS = [
 const YEAR_OPTS = ["半年未満","半年〜1年","1〜3年","3〜5年","5年以上"];
 const YEAR_NUM = { "半年未満":10,"半年〜1年":25,"1〜3年":50,"3〜5年":75,"5年以上":95 };
 
-// ── CONSULTING SYSTEM PROMPT ──────────────────────────────────
-const SYSTEM_PROMPT = `あなたは国家資格を持つ経験豊富なキャリアコンサルタントです。転職を考えているクライアントと1対1のカウンセリングセッションを行っています。
+// ── CONSULTING THEMES ─────────────────────────────────────────
+const THEMES = [
+  {
+    id: "moyo",
+    icon: "🌀",
+    label: "仕事のもやもや",
+    desc: "今の仕事で感じる違和感・不満・迷いを整理したい",
+    color: "#7B2FBE",
+    opening: "今日は、仕事の中で感じているもやもやについてお話を聞かせていただければと思います。最近、仕事の中でどんな場面でもやもやを感じることが多いですか？",
+  },
+  {
+    id: "taisetu",
+    icon: "💎",
+    label: "仕事で大切にしていること",
+    desc: "自分が仕事を通じて何を大事にしているか言語化したい",
+    color: "#E8960C",
+    opening: "今日は、あなたが仕事を通じて大切にしていることについて、一緒に考えていければと思います。これまでの仕事の中で、「これだけは大事にしてきた」と感じることはありますか？",
+  },
+  {
+    id: "tensyoku",
+    icon: "🚪",
+    label: "転職について考えたい",
+    desc: "転職の軸・方向性・不安を整理したい",
+    color: "#4361EE",
+    opening: "今日は転職についてのお気持ちをお聞かせください。転職を考え始めたのは、どんなきっかけがありましたか？",
+  },
+  {
+    id: "tsuyomi",
+    icon: "✨",
+    label: "自分の強みを知りたい",
+    desc: "自分でも気づいていない強み・得意なことを探りたい",
+    color: "#27A96C",
+    opening: "今日は、あなた自身の強みについて一緒に探っていければと思います。周りの人から「いつもありがとう」とか「助かった」と言われた経験で、思い浮かぶものはありますか？",
+  },
+  {
+    id: "career",
+    icon: "🗺️",
+    label: "これからのキャリアを考えたい",
+    desc: "将来どんな働き方・仕事をしたいか考えたい",
+    color: "#FF6B35",
+    opening: "今日は、これからのキャリアについてお話しできればと思います。5年後・10年後の自分について、漠然とでも何かイメージがありますか？",
+  },
+  {
+    id: "free",
+    icon: "💬",
+    label: "自由に話したい",
+    desc: "テーマを決めずに、今感じていることを話したい",
+    color: "#9097B8",
+    opening: "今日はどんなことでもお話しいただける場です。今、仕事やキャリアのことで頭にあることを、自由に話していただけますか？",
+  },
+];
 
-## あなたの役割
-クライアントが自分でも気づいていない「強み・価値観・キャリアの軸」を引き出すこと。評価や判断は一切せず、傾聴と質問によって自己理解を深めるサポートをします。
+// ── BASE SYSTEM PROMPT (JCDA経験代謝ベース) ──────────────────
+const BASE_SYSTEM = `あなたは国家資格キャリアコンサルタントです。JCDAの提唱する「経験代謝」の考え方に基づき、クライアントの自己理解を深めるカウンセリングを行います。
 
-## カウンセリングの進め方
-セッションは以下の流れで自然に進めてください：
+【経験代謝とは】
+クライアントが自分の経験を語る中で、その経験に込められた意味や感情に気づき、自己概念（「自分はこういう人間だ」という認識）を更新していくプロセスです。
 
-**前半（1〜3往復）：現状と過去の経験を聞く**
-- 現在の仕事でやりがいを感じる瞬間、逆につらいと感じる場面
-- これまでのキャリアで一番充実していた時期・プロジェクト
-- 転職を考え始めたきっかけや背景
+【あなたの基本姿勢】
+・傾聴が最優先。クライアントの言葉をしっかり受け取ることが仕事です
+・アドバイス・提案・評価は絶対にしません
+・「こうしたほうがいい」「それは〜ですね（決めつけ）」はNGです
+・クライアントが自分で気づくことを支援します
 
-**中盤（4〜6往復）：価値観・強みを深掘りする**
-- 「なぜそれが嬉しかったのか」「なぜそれがつらかったのか」という感情の背景
-- クライアントが大切にしていること・譲れないこと
-- 周囲から褒められること・自然と頼まれること
+【会話のルール】
+・1メッセージにつき質問は必ず1つだけ
+・まず相手の言葉を受け取り（「〜なんですね」）、それから1つ問いかける
+・クライアントが使った言葉をそのまま使って返す（ミラーリング）
+・感情に寄り添う（「それはしんどかったですね」「嬉しかったんですね」）
+・「なぜ」より「どんな気持ちでしたか」「どんな場面でしたか」を使う
+・深掘りするとき：「もう少し聞かせていただけますか」「それはどういうことか、教えてもらえますか」
+・沈黙・短い返答もOK。焦らず「今、どんなことが浮かんでいますか」と問いかける
 
-**後半（7〜8往復）：気づきを整理する**
-- ここまでの対話で見えてきたパターンや強みをクライアントにフィードバック
-- 「〜という言葉を何度かおっしゃっていましたね」などでミラーリングしてまとめる
-- 転職先に求めるものを一緒に言語化する
+【文体】
+・敬語だが温かく自然な話し言葉（「〜ですね」「〜でしたか」「〜なんですね」）
+・1メッセージは2〜4文程度。短くていい。長い説明は不要
+・箇条書きは使わない。すべて会話文で
+・英語は使わない。すべて日本語で`;
 
-## 会話のルール（必ず守ること）
-- **1メッセージにつき質問は1つだけ**（絶対に複数の質問をしない）
-- **必ず共感・承認から始めてから次の質問へ**（例：「それは大変でしたね」「素晴らしい経験ですね」）
-- **クライアントが使った言葉をそのまま使う**（ミラーリング）
-- **「なぜ？」より「どんな気持ちでしたか？」「具体的にはどんな場面でしたか？」を使う**
-- **絶対に評価・判断・アドバイスをしない**（「〜したほうがいいですよ」はNG）
-- **短く、温かく、自然な口語で話す**（長い文章は避ける）
-- **クライアントの答えを深掘りしてから次のテーマへ移る**
+const buildSystemPrompt = (themeId, profileSummary) => {
+  const theme = THEMES.find(t => t.id === themeId) || THEMES[5];
+  const themeGuide = {
+    moyo: `
+【今日のテーマ：仕事のもやもや】
+「もやもや」という感情の背景にある価値観や欲求を、一緒に探っていきます。
+・もやもやの具体的な場面を丁寧に聞く
+・「何がそんなに引っかかるんだろう」という気持ちに共感する
+・もやもやの裏にある「本当は〜したい」「〜を大切にしたい」という欲求を引き出す`,
+    taisetu: `
+【今日のテーマ：仕事で大切にしていること】
+経験の中から、クライアントが無意識に大切にしてきたものを言語化するサポートをします。
+・具体的なエピソードを通じて価値観を探る
+・「それをしているとき、どんな気持ちでしたか」で感情を引き出す
+・複数のエピソードに共通するパターンに気づいてもらう`,
+    tensyoku: `
+【今日のテーマ：転職について】
+転職の「理由」より「何を求めているか」を引き出すことに集中します。
+・転職したい気持ちの背景にある感情や経験を丁寧に聞く
+・「何から離れたいのか」と「何に向かいたいのか」の両方を探る
+・焦りや不安があれば、まずそこに共感する`,
+    tsuyomi: `
+【今日のテーマ：強みを知る】
+クライアント自身が気づいていない強みを、経験談から引き出します。
+・「当たり前にやっていること」の中に強みが隠れていることを念頭に置く
+・褒められた経験・感謝された経験を具体的に聞く
+・「なぜそれができたと思いますか」ではなく「どんなことを考えながらやっていましたか」と聞く`,
+    career: `
+【今日のテーマ：これからのキャリア】
+未来の話をしながら、現在の自己概念や価値観を探ります。
+・「なりたい姿」より「どんな状態でいたいか」「何を感じていたいか」を聞く
+・過去の充実した経験と照らし合わせながら対話する
+・具体的なイメージがなくてもOK。「わからない」という気持ちも大切な出発点`,
+    free: `
+【今日のテーマ：自由対話】
+クライアントが話したいことを中心に、自然な流れでカウンセリングを進めます。
+・最初の話題を深掘りし、そこから自然にテーマを見つけていく
+・クライアントのペースを最優先する`,
+  };
 
-## 文体
-- 敬語だが親しみやすく（「〜ですね」「〜でしたか」「〜なんですね」）
-- 1メッセージは3〜5文程度（長すぎない）
-- 箇条書きは使わず、自然な会話文で`;
+  return `${BASE_SYSTEM}
+
+${themeGuide[themeId] || themeGuide.free}
+
+【クライアント情報（参考）】
+${profileSummary}
+
+最初のメッセージは以下の文で始めてください（変更しないでください）：
+「${theme.opening}」`;
+};
 
 
 // ══════════════════════════════════════════════════════════════
@@ -190,6 +282,7 @@ export default function App() {
   const [sessionDone, setSessionDone] = useState(false);
   const [report, setReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState(null);
 
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -219,34 +312,24 @@ export default function App() {
   const toggleSkill = (skill) => setSkillMap(prev => { const n={...prev}; if(n[skill]) delete n[skill]; else n[skill]="半年未満"; return n; });
   const setYears = (skill, y) => setSkillMap(prev => ({...prev,[skill]:y}));
 
-  const buildProfileSummary = () => `
-【クライアント情報】
-- 名前: ${basic.name || "未入力"}
-- 年齢: ${basic.age ? basic.age + "歳" : "未入力"}
-- 現在の業界: ${basic.industry || "未入力"}
-- 現在のポジション: ${basic.position || "未入力"}
-- 転職を考えている理由: ${basic.changeReason.join("、") || "未入力"}
-- 職歴:
-${careers.filter(c=>c.company||c.role).map((c,i)=>`  ${i+1}. ${c.company}（${c.period}）／ ${c.role}
-     実績・業務: ${c.achievements||"未記入"}`).join("\n") || "  未入力"}
-- 保有スキル: ${Object.keys(skillMap).join("、") || "未入力"}
-
-このクライアントの情報を踏まえ、最初の一言は温かく自然な挨拶から始めてください。クライアントの職歴や転職理由に触れながら、まず「今の仕事でどんな場面が一番充実していますか？」という方向で会話を始めてください。`;
+  const buildProfileSummary = () =>
+`名前: ${basic.name||"未入力"}、年齢: ${basic.age ? basic.age+"歳" : "未入力"}、業界: ${basic.industry||"未入力"}、ポジション: ${basic.position||"未入力"}、転職理由: ${basic.changeReason.join("、")||"未入力"}
+職歴: ${careers.filter(c=>c.company||c.role).map(c=>`${c.company}（${c.period}）${c.role} ${c.achievements?"／"+c.achievements:""}`).join(" / ")||"未入力"}
+スキル: ${Object.keys(skillMap).join("、")||"未入力"}`;
 
   const completePhase1 = () => {
     persist({ basic, careers, skillMap, phase1Done: true });
-    setPage("phase2");
-    startConsulting();
+    setPage("theme-select");
   };
 
-  // ── Phase2: AI consulting ──────────────────────────────────
-  const startConsulting = async () => {
-    setAiTyping(true);
-    // ストリーミング用の仮メッセージを追加
+  const startConsulting = async (themeId) => {
+    setSelectedTheme(themeId);
     setMessages([{ role: "assistant", content: "" }]);
+    setAiTyping(true);
     try {
+      const sysPrompt = buildSystemPrompt(themeId, buildProfileSummary());
       const initMessages = [
-        { role: "system", content: SYSTEM_PROMPT + buildProfileSummary() },
+        { role: "system", content: sysPrompt },
         { role: "user", content: "よろしくお願いします。" },
       ];
       await callAIStream(initMessages, (partial) => {
@@ -262,24 +345,20 @@ ${careers.filter(c=>c.company||c.role).map((c,i)=>`  ${i+1}. ${c.company}（${c.
     if (!input.trim() || aiTyping) return;
     const userMsg = { role: "user", content: input.trim() };
     const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    setMessages([...newMessages, { role: "assistant", content: "" }]);
     setInput("");
     setAiTyping(true);
-
-    // ストリーミング用の仮メッセージを追加
-    const streamingMessages = [...newMessages, { role: "assistant", content: "" }];
-    setMessages(streamingMessages);
 
     try {
       const userTurns = newMessages.filter(m=>m.role==="user").length;
       const isNearEnd = userTurns >= 7 && !sessionDone;
-
       const endingHint = isNearEnd
-        ? "\n\n【セッション終盤のヒント】そろそろ対話のまとめに入ってください。これまでの会話で見えてきたクライアントの強み・価値観・キャリアの軸をフィードバックし、「ここまでの対話をもとにレポートを作成することができます」と自然に伝えてください。"
+        ? "\n\n【セッション終盤】そろそろ対話のまとめに入ってください。これまでの会話で繰り返し出てきた言葉やテーマを丁寧にフィードバックし、クライアント自身に気づきを確認してもらってください。「ここまでの対話をもとにレポートを作成できます」と最後に自然に伝えてください。"
         : "";
 
+      const sysPrompt = buildSystemPrompt(selectedTheme || "free", buildProfileSummary()) + endingHint;
       const apiMessages = [
-        { role: "system", content: SYSTEM_PROMPT + buildProfileSummary() + endingHint },
+        { role: "system", content: sysPrompt },
         ...newMessages,
       ];
 
@@ -290,7 +369,7 @@ ${careers.filter(c=>c.company||c.role).map((c,i)=>`  ${i+1}. ${c.company}（${c.
       });
 
       if (isNearEnd) setSessionDone(true);
-      persist({ messages: [...newMessages, { role: "assistant", content: finalReply }] });
+      persist({ messages: [...newMessages, { role: "assistant", content: finalReply }], selectedTheme });
     } catch(e) {
       setMessages([...newMessages, { role: "assistant", content: "申し訳ありません。エラーが発生しました。もう一度送信してください。" }]);
     }
@@ -689,19 +768,48 @@ ${conversation}
       )}
     </div>
   );
+  if (page === "theme-select") return shell(
+    <div style={{ maxWidth:720, margin:"0 auto", padding:"40px 20px", animation:"fadeUp 0.4s ease" }}>
+      <div style={{ textAlign:"center", marginBottom:36 }}>
+        <div style={{ fontSize:11, fontWeight:700, color:C.teal, letterSpacing:"0.1em", marginBottom:8 }}>PHASE 2</div>
+        <h1 style={{ fontSize:24, fontWeight:800, marginBottom:10 }}>今日話したいテーマを選んでください</h1>
+        <p style={{ color:C.sub, fontSize:14, lineHeight:1.7 }}>
+          選んだテーマに合わせて、AIコンサルタントが<br/>対話のスタイルを変えてお話しします。
+        </p>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:32 }}>
+        {THEMES.map(theme => (
+          <button key={theme.id} onClick={()=>{ setPage("phase2"); startConsulting(theme.id); }}
+            style={{ textAlign:"left", padding:"20px", background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:16, cursor:"pointer", fontFamily:F, transition:"all 0.2s", boxShadow:C.shadow }}>
+            <div style={{ fontSize:28, marginBottom:10 }}>{theme.icon}</div>
+            <div style={{ fontWeight:700, fontSize:15, color:theme.color, marginBottom:6 }}>{theme.label}</div>
+            <div style={{ fontSize:12, color:C.sub, lineHeight:1.6 }}>{theme.desc}</div>
+          </button>
+        ))}
+      </div>
+
+      <button onClick={()=>setPage("phase1")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F, textDecoration:"underline" }}>
+        ← スキルの棚卸しに戻る
+      </button>
+    </div>
+  );
+
   if (page === "phase2") return shell(
     <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 58px)" }}>
       {/* Header */}
-      <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-        <div>
-          <div style={{ fontSize:13, fontWeight:700, color:C.teal }}>PHASE 2：AIキャリアコンサルティング</div>
-          <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>あなたの強み・価値観を引き出す対話セッション</div>
+      <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {selectedTheme && (() => { const t = THEMES.find(x=>x.id===selectedTheme); return t ? <><span style={{ fontSize:18 }}>{t.icon}</span><div><div style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</div><div style={{ fontSize:11, color:C.muted }}>AIキャリアコンサルティング</div></div></> : null; })()}
         </div>
-        {sessionDone && (
-          <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"8px 18px", fontSize:13 }}>
-            {reportLoading ? "生成中..." : "📄 レポートを作成"}
-          </Btn>
-        )}
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button onClick={()=>setPage("theme-select")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 12px", color:C.muted, cursor:"pointer", fontSize:12, fontFamily:F }}>テーマを変える</button>
+          {sessionDone && (
+            <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"7px 16px", fontSize:12 }}>
+              {reportLoading ? "生成中..." : "📄 レポートを作成"}
+            </Btn>
+          )}
+        </div>
       </div>
 
       {/* Chat area */}
@@ -709,31 +817,35 @@ ${conversation}
         {messages.length === 0 && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:C.muted, fontSize:14 }}>
             <div style={{ width:20, height:20, border:`2px solid ${C.border}`, borderTopColor:C.teal, borderRadius:"50%", animation:"spin .8s linear infinite", marginRight:10 }}/>
-            AIが準備中です...
+            準備中です...
           </div>
         )}
 
         {messages.map((msg, i) => (
           <div key={i} style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:10, alignItems:"flex-end" }}>
             {msg.role === "assistant" && (
-              <div style={{ width:36, height:36, borderRadius:"50%", background:`linear-gradient(135deg,${C.teal},#0B7A6A)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0, boxShadow:`0 2px 8px ${C.teal}44` }}>👩‍💼</div>
+              <div style={{ width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, flexShrink:0 }}>👩‍💼</div>
             )}
             <div style={{
-              maxWidth:"72%", padding:"13px 16px", borderRadius:msg.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",
+              maxWidth:"72%", padding:"13px 16px",
+              borderRadius:msg.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",
               background:msg.role==="user"?C.accent:C.surface,
               color:msg.role==="user"?"#fff":C.text,
-              fontSize:14, lineHeight:1.8, boxShadow:C.shadow,
+              fontSize:14, lineHeight:1.85, boxShadow:C.shadow,
               border:msg.role==="user"?"none":`1px solid ${C.border}`,
               whiteSpace:"pre-wrap",
             }}>
               {msg.content}
+              {msg.role==="assistant" && aiTyping && i===messages.length-1 && msg.content && (
+                <span style={{ display:"inline-block", width:2, height:14, background:C.teal, marginLeft:2, animation:"blink 0.8s infinite", verticalAlign:"middle" }}/>
+              )}
             </div>
           </div>
         ))}
 
         {aiTyping && messages[messages.length-1]?.content === "" && (
           <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
-            <div style={{ width:36, height:36, borderRadius:"50%", background:`linear-gradient(135deg,${C.teal},#0B7A6A)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0, boxShadow:`0 2px 8px ${C.teal}44` }}>👩‍💼</div>
+            <div style={{ width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, flexShrink:0 }}>👩‍💼</div>
             <div style={{ padding:"13px 18px", borderRadius:"16px 16px 16px 4px", background:C.surface, border:`1px solid ${C.border}`, boxShadow:C.shadow, display:"flex", gap:4, alignItems:"center" }}>
               {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
             </div>
@@ -762,7 +874,7 @@ ${conversation}
         </div>
         {sessionDone && (
           <div style={{ maxWidth:720, margin:"12px auto 0", padding:"10px 16px", background:C.tealL, border:`1px solid ${C.teal}44`, borderRadius:10, fontSize:13, color:C.teal, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <span>対話セッションが十分な内容になりました</span>
+            <span>対話の内容が十分になりました</span>
             <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"6px 14px", fontSize:12 }}>
               {reportLoading?"生成中...":"📄 レポートを作成する"}
             </Btn>
