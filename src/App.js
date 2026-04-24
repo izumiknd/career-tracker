@@ -31,14 +31,42 @@ const KEY = "pathnote_v3";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
 const save = (d) => localStorage.setItem(KEY, JSON.stringify(d));
 
-// ── Groq API ──────────────────────────────────────────────────
+// ── Groq API (streaming) ──────────────────────────────────────
+async function callAIStream(messages, onChunk) {
+  const apiKey = process.env.REACT_APP_GROQ_API_KEY;
+  if (!apiKey) throw new Error("APIキーが設定されていません");
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages, temperature: 0.6, max_tokens: 600, stream: true }),
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e?.error?.message||res.statusText}`); }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n").filter(l => l.startsWith("data: ") && l !== "data: [DONE]");
+    for (const line of lines) {
+      try {
+        const json = JSON.parse(line.slice(6));
+        const delta = json.choices?.[0]?.delta?.content || "";
+        if (delta) { full += delta; onChunk(full); }
+      } catch {}
+    }
+  }
+  return full;
+}
+
 async function callAI(messages) {
   const apiKey = process.env.REACT_APP_GROQ_API_KEY;
   if (!apiKey) throw new Error("APIキーが設定されていません");
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages, temperature: 0.5, max_tokens: 800 }),
+    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages, temperature: 0.4, max_tokens: 1200 }),
   });
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e?.error?.message||res.statusText}`); }
   const data = await res.json();
@@ -105,23 +133,43 @@ const YEAR_OPTS = ["半年未満","半年〜1年","1〜3年","3〜5年","5年以
 const YEAR_NUM = { "半年未満":10,"半年〜1年":25,"1〜3年":50,"3〜5年":75,"5年以上":95 };
 
 // ── CONSULTING SYSTEM PROMPT ──────────────────────────────────
-const SYSTEM_PROMPT = `あなたはプロのキャリアコンサルタントです。転職を考えているユーザーと対話し、以下の目的を達成してください。
+const SYSTEM_PROMPT = `あなたは国家資格を持つ経験豊富なキャリアコンサルタントです。転職を考えているクライアントと1対1のカウンセリングセッションを行っています。
 
-目的：
-1. ユーザーのソフトスキル・価値観・強みを引き出す
-2. 過去の経験から「なぜ」を深掘りし、キャリアの軸を明確にする
-3. ユーザー自身が「自分でも気づいていなかった強み・価値観」に気づけるよう導く
+## あなたの役割
+クライアントが自分でも気づいていない「強み・価値観・キャリアの軸」を引き出すこと。評価や判断は一切せず、傾聴と質問によって自己理解を深めるサポートをします。
 
-会話のガイドライン：
-- 一度に1〜2問だけ質問する（多すぎない）
-- 共感・承認を必ず示してから次の質問へ
-- 「なぜ？」「どんな気持ちでしたか？」「具体的には？」を使って深掘りする
-- ユーザーが使った言葉をそのまま使って返す（ミラーリング）
-- 評価や判断はしない、傾聴に徹する
-- 会話は自然な日本語で、敬語だが親しみやすく
-- 5〜8往復の対話でひと区切りつける
+## カウンセリングの進め方
+セッションは以下の流れで自然に進めてください：
 
-最初のメッセージでは、ユーザーのプロフィールと職歴を参考に自然な導入から始めてください。`;
+**前半（1〜3往復）：現状と過去の経験を聞く**
+- 現在の仕事でやりがいを感じる瞬間、逆につらいと感じる場面
+- これまでのキャリアで一番充実していた時期・プロジェクト
+- 転職を考え始めたきっかけや背景
+
+**中盤（4〜6往復）：価値観・強みを深掘りする**
+- 「なぜそれが嬉しかったのか」「なぜそれがつらかったのか」という感情の背景
+- クライアントが大切にしていること・譲れないこと
+- 周囲から褒められること・自然と頼まれること
+
+**後半（7〜8往復）：気づきを整理する**
+- ここまでの対話で見えてきたパターンや強みをクライアントにフィードバック
+- 「〜という言葉を何度かおっしゃっていましたね」などでミラーリングしてまとめる
+- 転職先に求めるものを一緒に言語化する
+
+## 会話のルール（必ず守ること）
+- **1メッセージにつき質問は1つだけ**（絶対に複数の質問をしない）
+- **必ず共感・承認から始めてから次の質問へ**（例：「それは大変でしたね」「素晴らしい経験ですね」）
+- **クライアントが使った言葉をそのまま使う**（ミラーリング）
+- **「なぜ？」より「どんな気持ちでしたか？」「具体的にはどんな場面でしたか？」を使う**
+- **絶対に評価・判断・アドバイスをしない**（「〜したほうがいいですよ」はNG）
+- **短く、温かく、自然な口語で話す**（長い文章は避ける）
+- **クライアントの答えを深掘りしてから次のテーマへ移る**
+
+## 文体
+- 敬語だが親しみやすく（「〜ですね」「〜でしたか」「〜なんですね」）
+- 1メッセージは3〜5文程度（長すぎない）
+- 箇条書きは使わず、自然な会話文で`;
+
 
 // ══════════════════════════════════════════════════════════════
 export default function App() {
@@ -171,6 +219,20 @@ export default function App() {
   const toggleSkill = (skill) => setSkillMap(prev => { const n={...prev}; if(n[skill]) delete n[skill]; else n[skill]="半年未満"; return n; });
   const setYears = (skill, y) => setSkillMap(prev => ({...prev,[skill]:y}));
 
+  const buildProfileSummary = () => `
+【クライアント情報】
+- 名前: ${basic.name || "未入力"}
+- 年齢: ${basic.age ? basic.age + "歳" : "未入力"}
+- 現在の業界: ${basic.industry || "未入力"}
+- 現在のポジション: ${basic.position || "未入力"}
+- 転職を考えている理由: ${basic.changeReason.join("、") || "未入力"}
+- 職歴:
+${careers.filter(c=>c.company||c.role).map((c,i)=>`  ${i+1}. ${c.company}（${c.period}）／ ${c.role}
+     実績・業務: ${c.achievements||"未記入"}`).join("\n") || "  未入力"}
+- 保有スキル: ${Object.keys(skillMap).join("、") || "未入力"}
+
+このクライアントの情報を踏まえ、最初の一言は温かく自然な挨拶から始めてください。クライアントの職歴や転職理由に触れながら、まず「今の仕事でどんな場面が一番充実していますか？」という方向で会話を始めてください。`;
+
   const completePhase1 = () => {
     persist({ basic, careers, skillMap, phase1Done: true });
     setPage("phase2");
@@ -180,24 +242,16 @@ export default function App() {
   // ── Phase2: AI consulting ──────────────────────────────────
   const startConsulting = async () => {
     setAiTyping(true);
+    // ストリーミング用の仮メッセージを追加
+    setMessages([{ role: "assistant", content: "" }]);
     try {
-      const profileSummary = `
-ユーザー情報：
-- 名前: ${basic.name || "未入力"}
-- 年齢: ${basic.age || "未入力"}
-- 現在の業界: ${basic.industry || "未入力"}
-- 現在のポジション: ${basic.position || "未入力"}
-- 転職理由: ${basic.changeReason.join("、") || "未入力"}
-- 職歴: ${careers.map(c=>`${c.company}（${c.period}）${c.role} - ${c.achievements}`).join(" / ")}
-- 主なスキル: ${Object.keys(skillMap).slice(0,8).join("、") || "未入力"}
-`;
       const initMessages = [
-        { role: "system", content: SYSTEM_PROMPT + "\n\n" + profileSummary },
+        { role: "system", content: SYSTEM_PROMPT + buildProfileSummary() },
         { role: "user", content: "よろしくお願いします。" },
       ];
-      const reply = await callAI(initMessages);
-      const aiMsg = { role: "assistant", content: reply };
-      setMessages([aiMsg]);
+      await callAIStream(initMessages, (partial) => {
+        setMessages([{ role: "assistant", content: partial }]);
+      });
     } catch(e) {
       setMessages([{ role: "assistant", content: "申し訳ありません。接続エラーが発生しました。再度お試しください。" }]);
     }
@@ -212,26 +266,33 @@ export default function App() {
     setInput("");
     setAiTyping(true);
 
+    // ストリーミング用の仮メッセージを追加
+    const streamingMessages = [...newMessages, { role: "assistant", content: "" }];
+    setMessages(streamingMessages);
+
     try {
-      const profileSummary = `ユーザー情報：名前${basic.name}、年齢${basic.age}、業界${basic.industry}、ポジション${basic.position}、転職理由${basic.changeReason.join("、")}、スキル${Object.keys(skillMap).slice(0,8).join("、")}`;
+      const userTurns = newMessages.filter(m=>m.role==="user").length;
+      const isNearEnd = userTurns >= 7 && !sessionDone;
+
+      const endingHint = isNearEnd
+        ? "\n\n【セッション終盤のヒント】そろそろ対話のまとめに入ってください。これまでの会話で見えてきたクライアントの強み・価値観・キャリアの軸をフィードバックし、「ここまでの対話をもとにレポートを作成することができます」と自然に伝えてください。"
+        : "";
+
       const apiMessages = [
-        { role: "system", content: SYSTEM_PROMPT + "\n\n" + profileSummary },
+        { role: "system", content: SYSTEM_PROMPT + buildProfileSummary() + endingHint },
         ...newMessages,
       ];
-      const reply = await callAI(apiMessages);
 
-      // 5往復以上でセッション終了を促す
-      const userTurns = newMessages.filter(m=>m.role==="user").length;
-      let finalReply = reply;
-      if (userTurns >= 6 && !sessionDone) {
-        setSessionDone(true);
-        finalReply = reply + "\n\n---\n今回の対話を通じて、多くの大切なことを聞かせていただきました。ここまでの内容をもとに、あなたの強み・価値観・キャリアの軸をまとめたレポートを作成しますか？";
-      }
+      let finalReply = "";
+      await callAIStream(apiMessages, (partial) => {
+        finalReply = partial;
+        setMessages([...newMessages, { role: "assistant", content: partial }]);
+      });
 
-      setMessages(prev => [...prev, { role: "assistant", content: finalReply }]);
+      if (isNearEnd) setSessionDone(true);
       persist({ messages: [...newMessages, { role: "assistant", content: finalReply }] });
     } catch(e) {
-      setMessages(prev => [...prev, { role: "assistant", content: "申し訳ありません。エラーが発生しました。もう一度送信してください。" }]);
+      setMessages([...newMessages, { role: "assistant", content: "申し訳ありません。エラーが発生しました。もう一度送信してください。" }]);
     }
     setAiTyping(false);
   };
@@ -670,7 +731,7 @@ ${conversation}
           </div>
         ))}
 
-        {aiTyping && (
+        {aiTyping && messages[messages.length-1]?.content === "" && (
           <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
             <div style={{ width:36, height:36, borderRadius:"50%", background:`linear-gradient(135deg,${C.teal},#0B7A6A)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0, boxShadow:`0 2px 8px ${C.teal}44` }}>👩‍💼</div>
             <div style={{ padding:"13px 18px", borderRadius:"16px 16px 16px 4px", background:C.surface, border:`1px solid ${C.border}`, boxShadow:C.shadow, display:"flex", gap:4, alignItems:"center" }}>
