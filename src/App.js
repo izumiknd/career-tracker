@@ -355,13 +355,13 @@ ${conversation}
       <div style={{ marginBottom:32 }}>
         <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.muted, marginBottom:8 }}>
           <span>PHASE 1：スキルの棚卸し</span>
-          <span>{p1step}/3</span>
+          <span>{p1step}/4</span>
         </div>
         <div style={{ background:C.border, borderRadius:99, height:4 }}>
-          <div style={{ width:`${(p1step/3)*100}%`, height:"100%", background:C.accent, borderRadius:99, transition:"width 0.4s ease" }}/>
+          <div style={{ width:`${(p1step/4)*100}%`, height:"100%", background:C.accent, borderRadius:99, transition:"width 0.4s ease" }}/>
         </div>
         <div style={{ display:"flex", gap:0, marginTop:10 }}>
-          {[["1","基本情報"],["2","職務経歴"],["3","スキル"]].map(([n,label],i)=>(
+          {[["1","基本情報"],["2","職務経歴"],["3","スキル"],["4","確認"]].map(([n,label],i)=>(
             <div key={n} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
               <div style={{ width:24, height:24, borderRadius:"50%", background:p1step>i?C.accent:p1step===i+1?C.accent:C.border, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700 }}>{p1step>i?"✓":n}</div>
               <span style={{ fontSize:11, color:p1step===i+1?C.accent:C.muted }}>{label}</span>
@@ -427,7 +427,11 @@ ${conversation}
       {p1step === 2 && (
         <div>
           <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>職務経歴</h2>
-          <p style={{ color:C.sub, fontSize:14, marginBottom:24 }}>これまでの職歴を入力してください（直近から）</p>
+          <p style={{ color:C.sub, fontSize:14, marginBottom:12 }}>これまでの職歴を入力してください（直近から）</p>
+          <div style={{ background:C.accentL, border:`1px solid ${C.accent}33`, borderRadius:10, padding:"10px 16px", marginBottom:20, fontSize:13, color:C.accent, display:"flex", alignItems:"center", gap:8 }}>
+            <span>💡</span>
+            <span>実績・担当業務を詳しく入力するほど、AIのスキル解析と提案の精度が上がります</span>
+          </div>
 
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             {careers.map((c,i)=>(
@@ -511,6 +515,111 @@ ${conversation}
 
           <div style={{ display:"flex", gap:12, marginTop:8 }}>
             <Btn variant="secondary" onClick={()=>setP1step(2)} style={{ flex:1 }}>← 戻る</Btn>
+            <Btn onClick={()=>setP1step(4)} style={{ flex:2 }}>
+              登録内容を確認する →
+            </Btn>
+          </div>
+        </div>
+      )}
+      {/* Step 4: 確認 */}
+      {p1step === 4 && (
+        <div>
+          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>登録内容の確認</h2>
+          <p style={{ color:C.sub, fontSize:14, marginBottom:24 }}>内容を確認して、問題なければAIコンサルティングへ進みましょう</p>
+
+          {/* 基本情報確認 */}
+          <Card style={{ marginBottom:16, padding:20 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>基本情報</div>
+              <button onClick={()=>setP1step(1)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline" }}>編集</button>
+            </div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
+              {[
+                { label:"名前", value:basic.name||"未入力" },
+                { label:"年齢", value:basic.age?`${basic.age}歳`:"未入力" },
+                { label:"業界", value:basic.industry||"未入力" },
+                { label:"ポジション", value:basic.position||"未入力" },
+              ].map(item=>(
+                <div key={item.label} style={{ background:C.bg, borderRadius:8, padding:"8px 14px", minWidth:100 }}>
+                  <div style={{ fontSize:10, color:C.muted, marginBottom:2 }}>{item.label}</div>
+                  <div style={{ fontSize:13, fontWeight:600, color:C.text }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+            {basic.changeReason.length > 0 && (
+              <div style={{ marginTop:12 }}>
+                <div style={{ fontSize:11, color:C.muted, marginBottom:6 }}>転職理由</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {basic.changeReason.map(r=>(
+                    <span key={r} style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:C.accentL, color:C.accent, fontWeight:600 }}>{r}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* 職務経歴確認 */}
+          <Card style={{ marginBottom:16, padding:20 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>職務経歴</div>
+              <button onClick={()=>setP1step(2)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline" }}>編集</button>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {careers.filter(c=>c.company||c.role).map((c,i)=>(
+                <div key={c.id} style={{ borderLeft:`3px solid ${C.accent}`, paddingLeft:12 }}>
+                  <div style={{ fontWeight:600, fontSize:14, color:C.text }}>{c.company||"会社名未入力"}</div>
+                  <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{c.period} ／ {c.role}</div>
+                  {c.achievements && <div style={{ fontSize:12, color:C.sub, marginTop:4, lineHeight:1.6 }}>{c.achievements}</div>}
+                </div>
+              ))}
+              {careers.every(c=>!c.company&&!c.role) && <div style={{ fontSize:13, color:C.muted }}>未入力</div>}
+            </div>
+          </Card>
+
+          {/* スキル確認 */}
+          <Card style={{ marginBottom:24, padding:20 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>登録スキル（{Object.keys(skillMap).length}個）</div>
+              <button onClick={()=>setP1step(3)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline" }}>編集</button>
+            </div>
+            {Object.keys(skillMap).length === 0 ? (
+              <div style={{ fontSize:13, color:C.muted }}>未選択</div>
+            ) : (
+              SKILL_CATS.map(cat=>{
+                const mySkills = cat.skills.filter(s=>skillMap[s]);
+                if (!mySkills.length) return null;
+                return (
+                  <div key={cat.label} style={{ marginBottom:14 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+                      <span>{cat.icon}</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:cat.color }}>{cat.label}</span>
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                      {mySkills.map(skill=>(
+                        <div key={skill}>
+                          <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.sub, marginBottom:3 }}>
+                            <span>{skill}</span>
+                            <span style={{ fontFamily:FM, fontSize:11, color:C.muted }}>{skillMap[skill]}</span>
+                          </div>
+                          <div style={{ background:C.border, borderRadius:99, height:5, overflow:"hidden" }}>
+                            <div style={{ width:`${YEAR_NUM[skillMap[skill]]||0}%`, height:"100%", background:cat.color, borderRadius:99 }}/>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </Card>
+
+          <div style={{ background:C.tealL, border:`1px solid ${C.teal}33`, borderRadius:12, padding:"16px 20px", marginBottom:20, fontSize:14, color:C.teal, lineHeight:1.7 }}>
+            <div style={{ fontWeight:700, marginBottom:4 }}>👩‍💼 次はAIキャリアコンサルティングへ</div>
+            <div style={{ fontSize:13 }}>AIコンサルタントがあなたに質問しながら、言葉にしにくいソフトスキルや価値観を一緒に引き出します。対話は5〜8往復程度です。</div>
+          </div>
+
+          <div style={{ display:"flex", gap:12 }}>
+            <Btn variant="secondary" onClick={()=>setP1step(3)} style={{ flex:1 }}>← 戻る</Btn>
             <Btn variant="teal" onClick={completePhase1} style={{ flex:2 }}>
               💬 AIコンサルティングへ進む →
             </Btn>
@@ -519,9 +628,6 @@ ${conversation}
       )}
     </div>
   );
-
-  // ════════════════════════════════════════════════════════════
-  // PHASE 2: AIコンサルティング（チャット）
   if (page === "phase2") return shell(
     <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 58px)" }}>
       {/* Header */}
@@ -549,7 +655,7 @@ ${conversation}
         {messages.map((msg, i) => (
           <div key={i} style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:10, alignItems:"flex-end" }}>
             {msg.role === "assistant" && (
-              <div style={{ width:32, height:32, borderRadius:"50%", background:C.tealL, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>🤖</div>
+              <div style={{ width:36, height:36, borderRadius:"50%", background:`linear-gradient(135deg,${C.teal},#0B7A6A)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0, boxShadow:`0 2px 8px ${C.teal}44` }}>👩‍💼</div>
             )}
             <div style={{
               maxWidth:"72%", padding:"13px 16px", borderRadius:msg.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",
@@ -566,7 +672,7 @@ ${conversation}
 
         {aiTyping && (
           <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
-            <div style={{ width:32, height:32, borderRadius:"50%", background:C.tealL, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>🤖</div>
+            <div style={{ width:36, height:36, borderRadius:"50%", background:`linear-gradient(135deg,${C.teal},#0B7A6A)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0, boxShadow:`0 2px 8px ${C.teal}44` }}>👩‍💼</div>
             <div style={{ padding:"13px 18px", borderRadius:"16px 16px 16px 4px", background:C.surface, border:`1px solid ${C.border}`, boxShadow:C.shadow, display:"flex", gap:4, alignItems:"center" }}>
               {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
             </div>
@@ -583,8 +689,8 @@ ${conversation}
             ref={inputRef}
             value={input}
             onChange={e=>setInput(e.target.value)}
-            onKeyDown={e=>{ if(e.key==="Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-            placeholder="メッセージを入力...（Enterで送信、Shift+Enterで改行）"
+            onKeyDown={e=>{ if(e.key==="Enter" && (e.ctrlKey||e.metaKey)) { e.preventDefault(); sendMessage(); } }}
+            placeholder="メッセージを入力...（Ctrl+Enterで送信）"
             disabled={aiTyping}
             style={{ ...IS, flex:1, minHeight:48, maxHeight:120, lineHeight:1.6, resize:"none", borderRadius:12, padding:"12px 16px" }}
           />
