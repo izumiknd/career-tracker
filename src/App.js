@@ -980,7 +980,10 @@ export default function App() {
       {/* チャットヘッダー */}
       <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          {selectedTheme && (()=>{ const t=THEMES.find(x=>x.id===selectedTheme); return t?<><t.Icon size={16} color={t.color} strokeWidth={1.8}/><div><div style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</div><div style={{ fontSize:11, color:C.muted }}>AIキャリアコンサルティング</div></div></>:null; })()}
+          <button onClick={()=>setPage(data?"dashboard":"home")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", padding:"4px", display:"flex", alignItems:"center" }}>
+            <ChevronLeft size={20} strokeWidth={1.8}/>
+          </button>
+          {selectedTheme && (()=>{ const t=THEMES.find(x=>x.id===selectedTheme); return t?<><t.Icon size={15} color={t.color} strokeWidth={1.8}/><div><div style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</div><div style={{ fontSize:11, color:C.muted }}>AIキャリアコンサルティング</div></div></>:null; })()}
         </div>
         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
           <button onClick={()=>setPage("theme-select")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 10px", color:C.muted, cursor:"pointer", fontSize:12, fontFamily:F }}>テーマ変更</button>
@@ -1179,11 +1182,11 @@ export default function App() {
         </div>
 
         {/* ── タブナビ ── */}
-        <div style={{ display:"flex", gap:2, marginBottom:28, borderBottom:`2px solid ${C.border}` }}>
+        <div style={{ display:"flex", gap:0, marginBottom:28, borderBottom:`2px solid ${C.border}`, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
           {TABS.map(tab=>(
             <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
-              style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 20px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab.id?C.accent:"transparent"}`, marginBottom:"-2px", color:activeTab===tab.id?C.accent:C.muted, cursor:"pointer", fontSize:14, fontFamily:F, fontWeight:activeTab===tab.id?700:400, transition:"all 0.2s" }}>
-              <tab.Icon size={15} strokeWidth={1.8}/>{tab.label}
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"10px 16px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab.id?C.accent:"transparent"}`, marginBottom:"-2px", color:activeTab===tab.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontFamily:F, fontWeight:activeTab===tab.id?700:400, transition:"all 0.2s", whiteSpace:"nowrap", flexShrink:0 }}>
+              <tab.Icon size={14} strokeWidth={1.8}/>{tab.label}
             </button>
           ))}
         </div>
@@ -1206,7 +1209,7 @@ export default function App() {
                 </Card>
 
                 {/* 強み・ソフトスキル・価値観 */}
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:14 }}>
                   {[
                     { label:"強み",       Icon:Award,    items:r.strengths,  color:C.accent },
                     { label:"ソフトスキル", Icon:Sparkles, items:r.softSkills, color:C.teal },
@@ -1217,11 +1220,11 @@ export default function App() {
                         <section.Icon size={16} strokeWidth={1.8}/>
                         <span style={{ fontSize:14, fontWeight:700 }}>{section.label}</span>
                       </div>
-                      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                         {(section.items||[]).map((item,i)=>(
                           <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px", background:`${section.color}0D`, borderRadius:8 }}>
-                            <span style={{ color:section.color, fontWeight:700, flexShrink:0, fontSize:13 }}>▸</span>
-                            <span style={{ fontSize:13, color:C.text, lineHeight:1.6 }}>{item}</span>
+                            <span style={{ color:section.color, fontWeight:700, flexShrink:0, fontSize:12, marginTop:1 }}>▸</span>
+                            <span style={{ fontSize:13, color:C.text, lineHeight:1.7, wordBreak:"keep-all", overflowWrap:"anywhere" }}>{item}</span>
                           </div>
                         ))}
                       </div>
@@ -1325,8 +1328,8 @@ export default function App() {
                     </div>
                     <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                       {(r.insights||[]).map((ins,i)=>(
-                        <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"12px 16px", background:C.tealL, borderRadius:12, border:`1px solid ${C.teal}22` }}>
-                          <div style={{ flexShrink:0, padding:"3px 10px", borderRadius:12, background:C.teal, color:"#fff", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{ins.label}</div>
+                        <div key={i} style={{ padding:"14px 16px", background:C.tealL, borderRadius:12, border:`1px solid ${C.teal}22` }}>
+                          <div style={{ display:"inline-block", padding:"2px 10px", borderRadius:12, background:C.teal, color:"#fff", fontSize:11, fontWeight:700, marginBottom:8 }}>{ins.label}</div>
                           <div style={{ fontSize:13, color:C.sub, lineHeight:1.8 }}>{ins.text}</div>
                         </div>
                       ))}
