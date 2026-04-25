@@ -557,7 +557,7 @@ export default function App() {
     try {
       const conversation = messages.map(m=>`${m.role==="user"?"クライアント":"コンサルタント"}: ${m.content}`).join("\n");
       const profileSummary = `職歴: ${careers.map(c=>`${c.company} ${c.role}`).join("、")}、スキル: ${Object.keys(skillMap).join("、")}`;
-      const prompt = `以下はキャリアコンサルティングの対話記録です。この内容をもとに自己理解レポートを作成してください。JSONのみで返答してください（説明文・マークダウン不要）。\n\nプロフィール: ${profileSummary}\nテーマ: ${THEMES.find(t=>t.id===selectedTheme)?.label||"自由対話"}\n\n対話記録:\n${conversation}\n\n以下のJSON形式のみで返答:\n{"strengths":["強み1","強み2","強み3"],"softSkills":["ソフトスキル1","ソフトスキル2","ソフトスキル3"],"values":["価値観1","価値観2","価値観3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextSteps":["次のアクション1","次のアクション2","次のアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）","insights":[{"label":"キーワード","text":"対話を通じて明確になったこと（1文）"}]}\n\ninsightsは対話の中で特に重要な気づきを3〜5個抽出してください。`;
+      const prompt = `以下はキャリアコンサルティングの対話記録です。この内容をもとに自己理解レポートを作成してください。JSONのみで返答してください（説明文・マークダウン不要）。\n\nプロフィール: ${profileSummary}\nテーマ: ${THEMES.find(t=>t.id===selectedTheme)?.label||"自由対話"}\n\n対話記録:\n${conversation}\n\n以下のJSON形式のみで返答:\n{"strengths":["強み1","強み2","強み3"],"softSkills":["ソフトスキル1","ソフトスキル2","ソフトスキル3"],"values":["価値観1","価値観2","価値観3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextSteps":["次のアクション1","次のアクション2","次のアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）","insights":[{"label":"端的なキーワード（10文字以内）","text":"この気づきの背景・意味・なぜ重要かを具体的に説明（2〜3文）"}]}\n\ninsightsのルール：\n- labelは「〇〇を重視」「△△が強み」のように10文字以内の端的な表現にすること\n- textは「なぜそれが重要か」「どんな場面で発揮されるか」など具体的な解説を2〜3文で書くこと。「対話を通じて明確になりました」などの冗長な表現は使わない\n- 3〜5個抽出すること`;
       const result = await callAIJSON([{ role:"user", content:prompt }]);
       setReport(result);
       persist({ report:result, phase2Done:true, messages, selectedTheme });
@@ -1148,17 +1148,17 @@ export default function App() {
       <div style={{ maxWidth:860, margin:"0 auto", padding:"32px 20px", animation:"fadeUp 0.4s ease" }}>
 
         {/* ── ヘッダー ── */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
-          <div>
-            <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:6 }}>MY PAGE</div>
-            <h1 style={{ fontSize:22, fontWeight:800 }}>{b.name?`${b.name}さんのキャリアノート`:"マイキャリアノート"}</h1>
-            <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>最終更新: {savedAt}</div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:28, gap:12, flexWrap:"wrap" }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:4 }}>MY PAGE</div>
+            <h1 style={{ fontSize:20, fontWeight:800, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.name?`${b.name}さんのキャリアノート`:"マイキャリアノート"}</h1>
+            <div style={{ color:C.muted, fontSize:12, marginTop:3 }}>最終更新: {savedAt}</div>
           </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ fontSize:13, padding:"8px 14px", display:"flex", alignItems:"center", gap:6 }}>
-              <MessageCircle size={14}/> AI対話
+          <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+            <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ fontSize:12, padding:"8px 12px", display:"flex", alignItems:"center", gap:5, whiteSpace:"nowrap" }}>
+              <MessageCircle size={13}/> AI対話
             </Btn>
-            <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} variant="ghost" style={{ fontSize:13, padding:"8px 14px" }}>+ 情報を更新</Btn>
+            <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} variant="ghost" style={{ fontSize:12, padding:"8px 12px", whiteSpace:"nowrap" }}>編集</Btn>
           </div>
         </div>
 
@@ -1236,10 +1236,10 @@ export default function App() {
                 <Card style={{ background:C.goldL, border:`1px solid ${C.gold}44` }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.gold }}>
                     <PenLine size={18} strokeWidth={1.8}/>
-                    <span style={{ fontSize:15, fontWeight:700 }}>自己PRのベース</span>
-                    <span style={{ fontSize:11, color:C.muted, marginLeft:"auto" }}>※このテキストをベースに仕上げてください</span>
+                    <span style={{ fontSize:15, fontWeight:700, whiteSpace:"nowrap" }}>自己PRのベース</span>
                   </div>
                   <p style={{ color:C.text, fontSize:14, lineHeight:2 }}>{r.selfPR}</p>
+                  <div style={{ fontSize:11, color:C.muted, marginTop:10 }}>※このテキストをベースに仕上げてください</div>
                 </Card>
 
                 {/* ハードスキル */}
