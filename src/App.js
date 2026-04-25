@@ -4,7 +4,8 @@ import {
   MessageCircle, Brain, Users, Palette, TrendingUp, Wrench, Briefcase,
   Wind, Gem, DoorOpen, Sparkles, Map, MessageSquare,
   ClipboardList, FileText, Rocket, Compass, Heart, Award, PenLine,
-  ChevronRight, ChevronLeft, Save, Check, Lightbulb, ArrowRight
+  ChevronRight, ChevronLeft, Save, Check, Lightbulb, ArrowRight,
+  BookOpen, Building2, Clock, ScrollText, LayoutDashboard
 } from "lucide-react";
 
 // ── Design tokens ─────────────────────────────────────────────
@@ -35,9 +36,9 @@ const FM = "'DM Mono',monospace";
 // ── Legal info (要変更) ────────────────────────────────────────
 const LEGAL = {
   serviceName: "PathNote",
-  operator:    "合同会社Min.lake",
-  email:       "info@min.lake.jp",
-  since:       "2026年4月25日",
+  operator:    "【運営者名を記入してください】",
+  email:       "【メールアドレスを記入してください】",
+  since:       "2025年5月1日",
 };
 
 // ── Storage ───────────────────────────────────────────────────
@@ -367,13 +368,13 @@ const INDUSTRIES = ["IT・通信","メーカー・製造","金融・保険","商
 const POSITIONS  = ["一般社員・スタッフ","主任・リーダー","係長・課長補佐","課長・マネージャー","部長・シニアマネージャー","役員・経営者","フリーランス","学生・就活中","その他"];
 const WANTS      = ["年収アップ","キャリアアップ","職種・業界チェンジ","ワークライフバランス改善","人間関係","会社の将来性への不安","スキルアップ・成長機会","働き方の変化（リモート等）","その他"];
 const SKILL_CATS = [
-  { label:"コミュニケーション", color:"#4361EE", Icon:MessageCircle, skills:["プレゼンテーション","交渉・説得","ヒアリング","文章作成","語学（英語）","ファシリテーション","顧客対応"] },
+  { label:"コミュニケーション", color:"#4361EE", Icon:MessageCircle, skills:["プレゼンテーション","交渉・説得","ヒアリング","文章作成","語学（英語）","ファシリテーション","クレーム対応","電話・メール応対"] },
   { label:"思考・分析",         color:"#7B2FBE", Icon:Brain,         skills:["論理的思考","データ分析","課題発見","企画立案","リサーチ","数値管理","問題解決"] },
   { label:"マネジメント",       color:"#E8960C", Icon:Users,         skills:["チームマネジメント","プロジェクト管理","目標設定","育成・コーチング","採用","予算管理","リスク管理"] },
   { label:"クリエイティブ",     color:"#E91E8C", Icon:Palette,       skills:["デザイン思考","グラフィック","映像・動画","コピーライティング","SNS運用","ブランディング","写真・撮影"] },
   { label:"営業・マーケ",       color:"#FF6B35", Icon:TrendingUp,    skills:["営業","マーケティング","集客・広告","顧客管理(CRM)","市場調査","SNSマーケ","コンテンツ制作"] },
   { label:"専門・技術",         color:"#27A96C", Icon:Wrench,        skills:["IT・プログラミング","財務・会計","法務","医療・介護","教育・研修","建築・設計","製造・品質管理"] },
-  { label:"ビジネス基礎",       color:"#6B8CFF", Icon:Briefcase,     skills:["Excel","Word","PowerPoint","資料作成","スケジュール管理","議事録作成","事務処理","報連相","業務改善"] },
+  { label:"ビジネス基礎",       color:"#6B8CFF", Icon:Briefcase,     skills:["Excel","Word","PowerPoint","資料作成","スケジュール管理","議事録作成","事務処理","業務改善"] },
 ];
 const YEAR_OPTS = ["半年未満","半年〜1年","1〜3年","3〜5年","5年以上"];
 const YEAR_NUM  = { "半年未満":10,"半年〜1年":25,"1〜3年":50,"3〜5年":75,"5年以上":95 };
@@ -459,6 +460,7 @@ export default function App() {
   const [sessionDone, setSessionDone] = useState(false);
   const [report, setReport]       = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [activeTab, setActiveTab]         = useState("note");
   const [selectedTheme, setSelectedTheme] = useState(null);
 
   const chatEndRef = useRef(null);
@@ -466,7 +468,16 @@ export default function App() {
 
   useEffect(() => {
     const d = load();
-    if (d) { setData(d); setPage("dashboard"); } else { setPage("home"); }
+    if (d) {
+      setData(d);
+      setSkillMap(d.skillMap||{});
+      setBasic(d.basic||{ name:"", age:"", industry:"", position:"", changeReason:[] });
+      setCareers(d.careers&&d.careers.length>0 ? d.careers : [{ id:1, company:"", period:"", role:"", achievements:"" }]);
+      setSelectedTheme(d.selectedTheme||null);
+      setPage("dashboard");
+    } else {
+      setPage("home");
+    }
   }, []);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -478,7 +489,7 @@ export default function App() {
   }, [aiTyping, page]);
 
   const persist = (updates) => {
-    const nd = { ...(data||{}), ...updates, savedAt: new Date().toISOString() };
+    const nd = { ...(data||{}), basic, careers, skillMap, ...updates, savedAt: new Date().toISOString() };
     setData(nd); save(nd);
   };
 
@@ -764,17 +775,19 @@ export default function App() {
       )}
 
       {p1step === 3 && (
-        <div>
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>スキルの棚卸し</h2>
-          <p style={{ color:C.sub, fontSize:14, marginBottom:6 }}>経験・得意なことをすべて選んでください</p>
-          <div style={{ color:C.accent, fontFamily:FM, fontSize:12, marginBottom:24, fontWeight:600 }}>{Object.keys(skillMap).length} 個選択中</div>
+        <div style={{ margin:"0 -24px" }}>
+          <div style={{ padding:"0 24px", marginBottom:24 }}>
+            <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>スキルの棚卸し</h2>
+            <p style={{ color:C.sub, fontSize:14, marginBottom:6 }}>経験・得意なことをすべて選んでください</p>
+            <div style={{ color:C.accent, fontFamily:FM, fontSize:12, fontWeight:600 }}>{Object.keys(skillMap).length} 個選択中</div>
+          </div>
           {SKILL_CATS.map(cat=>(
-            <div key={cat.label} style={{ marginBottom:24 }}>
+            <div key={cat.label} style={{ marginBottom:24, padding:"0 24px" }}>
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
                 <cat.Icon size={15} color={cat.color} strokeWidth={1.8}/>
                 <span style={{ fontSize:13, fontWeight:700, color:cat.color }}>{cat.label}</span>
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(152px,1fr))", gap:8 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:8 }}>
                 {cat.skills.map(skill=>{
                   const sel = !!skillMap[skill];
                   return (
@@ -794,7 +807,7 @@ export default function App() {
               </div>
             </div>
           ))}
-          <div style={{ display:"flex", gap:12, marginTop:8 }}>
+          <div style={{ display:"flex", gap:12, marginTop:8, padding:"0 24px" }}>
             <Btn variant="secondary" onClick={()=>setP1step(2)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><ChevronLeft size={15}/> 戻る</Btn>
             <Btn onClick={()=>setP1step(4)} style={{ flex:2, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
               登録内容を確認する <ChevronRight size={15}/>
@@ -937,32 +950,34 @@ export default function App() {
 
   // ── Phase 2: Chat ──────────────────────────────────────────
   if (page === "phase2") return shell(
-    <div style={{ display:"flex", flexDirection:"column", flex:1, overflow:"hidden" }}>
-      <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"calc(100dvh - 58px)", overflow:"hidden" }}>
+      {/* チャットヘッダー */}
+      <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          {selectedTheme && (()=>{ const t=THEMES.find(x=>x.id===selectedTheme); return t?<><t.Icon size={18} color={t.color} strokeWidth={1.5}/><div><div style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</div><div style={{ fontSize:11, color:C.muted }}>AIキャリアコンサルティング</div></div></>:null; })()}
+          {selectedTheme && (()=>{ const t=THEMES.find(x=>x.id===selectedTheme); return t?<><t.Icon size={16} color={t.color} strokeWidth={1.8}/><div><div style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</div><div style={{ fontSize:11, color:C.muted }}>AIキャリアコンサルティング</div></div></>:null; })()}
         </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={()=>setPage("theme-select")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 12px", color:C.muted, cursor:"pointer", fontSize:12, fontFamily:F }}>テーマを変える</button>
+        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+          <button onClick={()=>setPage("theme-select")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 10px", color:C.muted, cursor:"pointer", fontSize:12, fontFamily:F }}>テーマ変更</button>
           {sessionDone && (
-            <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"7px 16px", fontSize:12, display:"flex", alignItems:"center", gap:6 }}>
-              <FileText size={14}/> {reportLoading?"生成中...":"レポートを作成"}
+            <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"6px 12px", fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
+              <FileText size={13}/> {reportLoading?"生成中...":"レポート作成"}
             </Btn>
           )}
         </div>
       </div>
 
-      <div style={{ flex:1, overflowY:"auto", padding:"24px 20px", maxWidth:720, width:"100%", margin:"0 auto", display:"flex", flexDirection:"column", gap:16 }}>
+      {/* チャットエリア（スクロール可能） */}
+      <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"20px 16px", display:"flex", flexDirection:"column", gap:14 }}>
         {messages.length === 0 && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:C.muted, fontSize:14 }}>
-            <div style={{ width:20, height:20, border:`2px solid ${C.border}`, borderTopColor:C.teal, borderRadius:"50%", animation:"spin .8s linear infinite", marginRight:10 }}/>
+            <div style={{ width:18, height:18, border:`2px solid ${C.border}`, borderTopColor:C.teal, borderRadius:"50%", animation:"spin .8s linear infinite", marginRight:8 }}/>
             準備中です...
           </div>
         )}
         {messages.map((msg,i)=>(
-          <div key={i} style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:10, alignItems:"flex-end" }}>
-            {msg.role === "assistant" && <div style={{ flexShrink:0 }}><ConsultantAvatar size={36}/></div>}
-            <div style={{ maxWidth:"72%", padding:"13px 16px", borderRadius:msg.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px", background:msg.role==="user"?C.accent:C.surface, color:msg.role==="user"?"#fff":C.text, fontSize:14, lineHeight:1.85, boxShadow:C.shadow, border:msg.role==="user"?"none":`1px solid ${C.border}`, whiteSpace:"pre-wrap" }}>
+          <div key={i} style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:8, alignItems:"flex-end" }}>
+            {msg.role === "assistant" && <div style={{ flexShrink:0 }}><ConsultantAvatar size={32}/></div>}
+            <div style={{ maxWidth:"80%", padding:"12px 14px", borderRadius:msg.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px", background:msg.role==="user"?C.accent:C.surface, color:msg.role==="user"?"#fff":C.text, fontSize:14, lineHeight:1.85, boxShadow:C.shadow, border:msg.role==="user"?"none":`1px solid ${C.border}`, whiteSpace:"pre-wrap" }}>
               {msg.role==="assistant" ? <BoldText text={msg.content}/> : msg.content}
               {msg.role==="assistant" && aiTyping && i===messages.length-1 && msg.content && (
                 <span style={{ display:"inline-block", width:2, height:14, background:C.teal, marginLeft:2, animation:"blink 0.8s infinite", verticalAlign:"middle" }}/>
@@ -971,35 +986,36 @@ export default function App() {
           </div>
         ))}
         {aiTyping && messages[messages.length-1]?.content==="" && (
-          <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
-            <div style={{ flexShrink:0 }}><ConsultantAvatar size={36}/></div>
-            <div style={{ padding:"13px 18px", borderRadius:"16px 16px 16px 4px", background:C.surface, border:`1px solid ${C.border}`, boxShadow:C.shadow, display:"flex", gap:4, alignItems:"center" }}>
-              {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
+          <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+            <div style={{ flexShrink:0 }}><ConsultantAvatar size={32}/></div>
+            <div style={{ padding:"12px 16px", borderRadius:"16px 16px 16px 4px", background:C.surface, border:`1px solid ${C.border}`, boxShadow:C.shadow, display:"flex", gap:4, alignItems:"center" }}>
+              {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
             </div>
           </div>
         )}
         <div ref={chatEndRef}/>
       </div>
 
-      <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"16px 20px", flexShrink:0 }}>
-        <div style={{ maxWidth:720, margin:"0 auto", display:"flex", gap:10, alignItems:"flex-end" }}>
-          <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
-            onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendMessage(); } }}
-            placeholder="メッセージを入力...（Ctrl+Enterで送信）" disabled={aiTyping}
-            style={{...IS, flex:1, minHeight:48, maxHeight:120, lineHeight:1.6, resize:"none", borderRadius:12, padding:"12px 16px" }}/>
-          <button onClick={sendMessage} disabled={aiTyping||!input.trim()}
-            style={{ width:48, height:48, borderRadius:12, background:input.trim()&&!aiTyping?C.teal:C.border, border:"none", color:"#fff", fontSize:20, cursor:input.trim()&&!aiTyping?"pointer":"not-allowed", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
-            ↑
-          </button>
-        </div>
+      {/* 入力エリア */}
+      <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"12px 16px", flexShrink:0 }}>
         {sessionDone && (
-          <div style={{ maxWidth:720, margin:"12px auto 0", padding:"10px 16px", background:C.tealL, border:`1px solid ${C.teal}44`, borderRadius:10, fontSize:13, color:C.teal, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ marginBottom:10, padding:"8px 14px", background:C.tealL, border:`1px solid ${C.teal}44`, borderRadius:10, fontSize:12, color:C.teal, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
             <span>対話の内容が十分になりました</span>
-            <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"6px 14px", fontSize:12, display:"flex", alignItems:"center", gap:6 }}>
-              <FileText size={13}/> {reportLoading?"生成中...":"レポートを作成する"}
+            <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"5px 12px", fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
+              <FileText size={12}/> {reportLoading?"生成中...":"レポートを作成"}
             </Btn>
           </div>
         )}
+        <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+          <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendMessage(); } }}
+            placeholder="メッセージを入力...（Ctrl+Enterで送信）" disabled={aiTyping}
+            style={{...IS, flex:1, minHeight:44, maxHeight:100, lineHeight:1.6, resize:"none", borderRadius:12, padding:"10px 14px", fontSize:14 }}/>
+          <button onClick={sendMessage} disabled={aiTyping||!input.trim()}
+            style={{ width:44, height:44, borderRadius:12, background:input.trim()&&!aiTyping?C.teal:C.border, border:"none", color:"#fff", fontSize:18, cursor:input.trim()&&!aiTyping?"pointer":"not-allowed", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
+            ↑
+          </button>
+        </div>
       </div>
     </div>
   , true);
@@ -1087,144 +1103,389 @@ export default function App() {
     const b  = d2.basic||{};
     const r  = d2.report;
     const sm = d2.skillMap||{};
+    const cs = d2.careers||[];
     const skillCount = Object.keys(sm).length;
     const savedAt    = d2.savedAt ? new Date(d2.savedAt).toLocaleDateString("ja-JP") : "—";
 
+    // タブ定義
+    const TABS = [
+      { id:"note",     label:"キャリアノート",  Icon:BookOpen },
+      { id:"dialogue", label:"対話ログ",        Icon:MessageCircle },
+      { id:"career",   label:"職務経歴",         Icon:Building2 },
+    ];
+    // activeTabはstateから使う（初期値を"note"に設定済み）
+
     return shell(
-      <div style={{ maxWidth:760, margin:"0 auto", padding:"32px 20px", animation:"fadeUp 0.4s ease" }}>
+      <div style={{ maxWidth:860, margin:"0 auto", padding:"32px 20px", animation:"fadeUp 0.4s ease" }}>
+
+        {/* ── ヘッダー ── */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
           <div>
             <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:6 }}>MY PAGE</div>
             <h1 style={{ fontSize:22, fontWeight:800 }}>{b.name?`${b.name}さんのキャリアノート`:"マイキャリアノート"}</h1>
             <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>最終更新: {savedAt}</div>
           </div>
-          <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} variant="ghost" style={{ fontSize:13, padding:"8px 16px" }}>+ 情報を更新</Btn>
+          <div style={{ display:"flex", gap:8 }}>
+            <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ fontSize:13, padding:"8px 14px", display:"flex", alignItems:"center", gap:6 }}>
+              <MessageCircle size={14}/> AI対話
+            </Btn>
+            <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} variant="ghost" style={{ fontSize:13, padding:"8px 14px" }}>+ 情報を更新</Btn>
+          </div>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
+        {/* ── ステータスバー ── */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:28 }}>
           {[
             { label:"登録スキル",     value:skillCount,              unit:"個", color:C.accent, bg:C.accentL, done:skillCount>0 },
             { label:"AI対話",        value:d2.phase2Done?"完了":"未実施", unit:"", color:d2.phase2Done?C.teal:C.muted, bg:d2.phase2Done?C.tealL:C.bg, done:d2.phase2Done },
             { label:"自己理解レポート", value:r?"作成済み":"未作成",    unit:"", color:r?C.gold:C.muted, bg:r?C.goldL:C.bg, done:!!r },
           ].map(card=>(
-            <div key={card.label} style={{ background:card.bg, border:`1px solid ${card.done?card.color+"44":C.border}`, borderRadius:14, padding:18 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <div key={card.label} style={{ background:card.bg, border:`1px solid ${card.done?card.color+"44":C.border}`, borderRadius:12, padding:"14px 16px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                 <div style={{ color:card.color, fontSize:11, fontWeight:700 }}>{card.label}</div>
-                {card.done ? <Check size={15} color={card.color} strokeWidth={2.5}/> : <div style={{ width:15, height:15, borderRadius:3, border:`1.5px solid ${C.border}` }}/>}
+                {card.done ? <Check size={14} color={card.color} strokeWidth={2.5}/> : <div style={{ width:14, height:14, borderRadius:3, border:`1.5px solid ${C.border}` }}/>}
               </div>
-              <div style={{ fontSize:typeof card.value==="number"?24:14, fontWeight:700, color:card.color }}>
-                {card.value}<span style={{ fontSize:12, color:card.color, opacity:0.7 }}>{card.unit}</span>
+              <div style={{ fontSize:typeof card.value==="number"?22:13, fontWeight:700, color:card.color }}>
+                {card.value}<span style={{ fontSize:11, color:card.color, opacity:0.7 }}>{card.unit}</span>
               </div>
             </div>
           ))}
         </div>
 
-        {r ? (
-          <div>
-            <Card style={{ marginBottom:20 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-                <div style={{ fontSize:14, fontWeight:700 }}>自己理解レポート</div>
-                <Btn variant="ghost" onClick={()=>setPage("report")} style={{ padding:"6px 14px", fontSize:12 }}>全文を見る</Btn>
-              </div>
-              <div style={{ background:C.tealL, border:`1px solid ${C.teal}33`, borderRadius:10, padding:"12px 16px", marginBottom:14 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6, color:C.teal }}>
-                  <Compass size={13} strokeWidth={1.8}/><span style={{ fontSize:11, fontWeight:700 }}>キャリアの軸</span>
-                </div>
-                <p style={{ fontSize:13, color:C.sub, lineHeight:1.7 }}>{r.careerAxis}</p>
-              </div>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
-                {(r.strengths||[]).map((s,i)=><Badge key={i} label={s} color={C.accent}/>)}
-                {(r.values||[]).map((v,i)=><Badge key={i} label={v} color={C.gold}/>)}
-              </div>
-              <div style={{ background:C.goldL, border:`1px solid ${C.gold}33`, borderRadius:10, padding:"12px 16px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6, color:C.gold }}>
-                  <PenLine size={13} strokeWidth={1.8}/><span style={{ fontSize:11, fontWeight:700 }}>自己PR文のベース</span>
-                </div>
-                <p style={{ fontSize:13, color:C.sub, lineHeight:1.7 }}>{r.selfPR}</p>
-              </div>
-            </Card>
+        {/* ── タブナビ ── */}
+        <div style={{ display:"flex", gap:2, marginBottom:28, borderBottom:`2px solid ${C.border}` }}>
+          {TABS.map(tab=>(
+            <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
+              style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 20px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab.id?C.accent:"transparent"}`, marginBottom:"-2px", color:activeTab===tab.id?C.accent:C.muted, cursor:"pointer", fontSize:14, fontFamily:F, fontWeight:activeTab===tab.id?700:400, transition:"all 0.2s" }}>
+              <tab.Icon size={15} strokeWidth={1.8}/>{tab.label}
+            </button>
+          ))}
+        </div>
 
-            {(r.insights||[]).length > 0 && (
-              <Card style={{ marginBottom:20, background:`linear-gradient(135deg,${C.tealL},#F0F4FF)`, border:`1px solid ${C.teal}33` }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
-                  <Lightbulb size={18} color={C.teal} strokeWidth={1.5}/>
-                  <div>
-                    <div style={{ fontSize:14, fontWeight:700 }}>対話を通じて明確になったこと</div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{THEMES.find(t=>t.id===d2.selectedTheme)?.label||"AIコンサルティング"} セッションより</div>
+        {/* ════════════════════════════════════════════
+            タブ①：キャリアノート
+        ════════════════════════════════════════════ */}
+        {activeTab === "note" && (
+          <div style={{ animation:"fadeUp 0.3s ease" }}>
+            {r ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+
+                {/* キャリアの軸 */}
+                <Card style={{ borderLeft:`4px solid ${C.teal}`, borderRadius:"0 16px 16px 0" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.teal }}>
+                    <Compass size={18} strokeWidth={1.8}/>
+                    <span style={{ fontSize:15, fontWeight:700 }}>キャリアの軸</span>
                   </div>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {(r.insights||[]).map((ins,i)=>(
-                    <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 14px", background:"rgba(255,255,255,0.7)", borderRadius:10, border:`1px solid ${C.border}` }}>
-                      <div style={{ flexShrink:0, padding:"2px 8px", borderRadius:12, background:C.teal, color:"#fff", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{ins.label}</div>
-                      <div style={{ fontSize:13, color:C.sub, lineHeight:1.7 }}>{ins.text}</div>
-                    </div>
+                  <p style={{ color:C.text, fontSize:15, lineHeight:2, fontWeight:500 }}>{r.careerAxis}</p>
+                </Card>
+
+                {/* 強み・ソフトスキル・価値観 */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14 }}>
+                  {[
+                    { label:"強み",       Icon:Award,    items:r.strengths,  color:C.accent },
+                    { label:"ソフトスキル", Icon:Sparkles, items:r.softSkills, color:C.teal },
+                    { label:"価値観",     Icon:Heart,    items:r.values,     color:C.gold },
+                  ].map(section=>(
+                    <Card key={section.label} style={{ padding:20 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:14, color:section.color }}>
+                        <section.Icon size={16} strokeWidth={1.8}/>
+                        <span style={{ fontSize:14, fontWeight:700 }}>{section.label}</span>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                        {(section.items||[]).map((item,i)=>(
+                          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px", background:`${section.color}0D`, borderRadius:8 }}>
+                            <span style={{ color:section.color, fontWeight:700, flexShrink:0, fontSize:13 }}>▸</span>
+                            <span style={{ fontSize:13, color:C.text, lineHeight:1.6 }}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
                   ))}
                 </div>
+
+                {/* 自己PR */}
+                <Card style={{ background:C.goldL, border:`1px solid ${C.gold}44` }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.gold }}>
+                    <PenLine size={18} strokeWidth={1.8}/>
+                    <span style={{ fontSize:15, fontWeight:700 }}>自己PRのベース</span>
+                    <span style={{ fontSize:11, color:C.muted, marginLeft:"auto" }}>※このテキストをベースに仕上げてください</span>
+                  </div>
+                  <p style={{ color:C.text, fontSize:14, lineHeight:2 }}>{r.selfPR}</p>
+                </Card>
+
+                {/* ハードスキル */}
+                {skillCount > 0 && (
+                  <Card>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
+                        <Wrench size={18} strokeWidth={1.8}/>
+                        <span style={{ fontSize:15, fontWeight:700 }}>ハードスキル</span>
+                        <span style={{ fontSize:12, color:C.muted, fontFamily:FM }}>{skillCount}個</span>
+                      </div>
+                      <Btn variant="secondary" onClick={()=>{ setP1step(3); setPage("phase1"); }} style={{ padding:"5px 12px", fontSize:12 }}>編集</Btn>
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+                      {SKILL_CATS.map(cat=>{
+                        const mySkills = cat.skills.filter(s=>sm[s]);
+                        if (!mySkills.length) return null;
+                        return (
+                          <div key={cat.label}>
+                            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+                              <cat.Icon size={14} color={cat.color} strokeWidth={1.8}/>
+                              <span style={{ fontSize:12, fontWeight:700, color:cat.color }}>{cat.label}</span>
+                            </div>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                              {mySkills.map(skill=>(
+                                <div key={skill} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", background:C.bg, border:`1px solid ${cat.color}44`, borderRadius:20 }}>
+                                  <span style={{ fontSize:13, color:C.text, fontWeight:500 }}>{skill}</span>
+                                  <span style={{ fontSize:11, color:cat.color, fontFamily:FM, fontWeight:600 }}>{sm[skill]}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                )}
+
+              </div>
+            ) : (
+              /* レポート未作成 */
+              <Card style={{ textAlign:"center", padding:48 }}>
+                <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
+                  <BookOpen size={48} color={C.border} strokeWidth={1}/>
+                </div>
+                <div style={{ fontSize:17, fontWeight:700, marginBottom:10 }}>キャリアノートはまだ作成されていません</div>
+                <p style={{ color:C.sub, fontSize:14, marginBottom:28, lineHeight:1.8 }}>
+                  AIコンサルタントとの対話を通じて、<br/>あなたのキャリアの軸・強み・価値観を言語化します。
+                </p>
+                {skillCount > 0 && (
+                  <div style={{ marginBottom:16 }}>
+                    <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
+                      <MessageCircle size={15}/> AI対話を始める
+                    </Btn>
+                  </div>
+                )}
+                {!skillCount && (
+                  <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
+                    <ClipboardList size={15}/> スキルの棚卸しから始める
+                  </Btn>
+                )}
               </Card>
             )}
-
-            <div style={{ display:"flex", gap:12 }}>
-              <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-                <MessageCircle size={14}/> 続けて話す
-              </Btn>
-              <Btn variant="secondary" onClick={()=>setPage("report")} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-                <FileText size={14}/> レポートを確認
-              </Btn>
-            </div>
           </div>
-        ) : (
-          <Card style={{ textAlign:"center", padding:40, marginBottom:20 }}>
-            <div style={{ display:"flex", justifyContent:"center", marginBottom:16 }}>
-              <MessageCircle size={44} color={C.border} strokeWidth={1.2}/>
-            </div>
-            <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>AIコンサルティングを始めましょう</div>
-            <p style={{ color:C.sub, fontSize:14, marginBottom:24, lineHeight:1.7 }}>
-              対話を通じて、あなたのソフトスキル・価値観・<br/>キャリアの軸を言語化します。
-            </p>
-            {d2.phase1Done ? (
-              <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
-                <MessageCircle size={15}/> AI対話を開始する
-              </Btn>
-            ) : (
-              <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
-                <ClipboardList size={15}/> スキルの棚卸しから始める
-              </Btn>
-            )}
-          </Card>
         )}
 
-        {skillCount > 0 && (
-          <Card style={{ marginTop:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-              <div style={{ fontSize:15, fontWeight:700 }}>登録スキル</div>
-              <Btn variant="secondary" onClick={()=>{ setP1step(3); setPage("phase1"); }} style={{ padding:"5px 12px", fontSize:12 }}>編集</Btn>
-            </div>
-            {SKILL_CATS.map(cat=>{
-              const mySkills = cat.skills.filter(s=>sm[s]);
-              if (!mySkills.length) return null;
-              return (
-                <div key={cat.label} style={{ marginBottom:24 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-                    <cat.Icon size={15} color={cat.color} strokeWidth={1.8}/>
-                    <span style={{ fontSize:13, fontWeight:700, color:cat.color }}>{cat.label}</span>
-                  </div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                    {mySkills.map(skill=>(
-                      <div key={skill}>
-                        <div style={{ display:"flex", justifyContent:"space-between", fontSize:14, color:C.sub, marginBottom:5 }}>
-                          <span style={{ fontWeight:500 }}>{skill}</span>
-                          <span style={{ fontFamily:FM, fontSize:12, color:C.muted }}>{sm[skill]}</span>
+        {/* ════════════════════════════════════════════
+            タブ②：対話ログ
+        ════════════════════════════════════════════ */}
+        {activeTab === "dialogue" && (
+          <div style={{ animation:"fadeUp 0.3s ease" }}>
+            {(r?.insights||[]).length > 0 || (d2.messages||[]).length > 0 ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+
+                {/* 明確になったこと */}
+                {(r?.insights||[]).length > 0 && (
+                  <Card>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:18, color:C.teal }}>
+                      <Lightbulb size={18} strokeWidth={1.8}/>
+                      <div>
+                        <div style={{ fontSize:15, fontWeight:700 }}>対話を通じて明確になったこと</div>
+                        <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
+                          {THEMES.find(t=>t.id===d2.selectedTheme)?.label||"AIコンサルティング"} セッションより
                         </div>
-                        <Bar value={YEAR_NUM[sm[skill]]||0} color={cat.color} height={7}/>
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                      {(r.insights||[]).map((ins,i)=>(
+                        <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"12px 16px", background:C.tealL, borderRadius:12, border:`1px solid ${C.teal}22` }}>
+                          <div style={{ flexShrink:0, padding:"3px 10px", borderRadius:12, background:C.teal, color:"#fff", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{ins.label}</div>
+                          <div style={{ fontSize:13, color:C.sub, lineHeight:1.8 }}>{ins.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* 対話セッション履歴一覧 */}
+                {(d2.messages||[]).length > 0 && (
+                  <Card>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:18, color:C.sub }}>
+                      <ScrollText size={18} strokeWidth={1.8}/>
+                      <div style={{ fontSize:15, fontWeight:700, color:C.text }}>対話セッション履歴</div>
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                      {/* 最新セッション */}
+                      <div style={{ padding:"16px 20px", background:C.bg, borderRadius:12, border:`1px solid ${C.border}` }}>
+                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+                          <div>
+                            {/* テーマ */}
+                            {d2.selectedTheme && (() => {
+                              const t = THEMES.find(x=>x.id===d2.selectedTheme);
+                              return t ? (
+                                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+                                  <t.Icon size={14} color={t.color} strokeWidth={1.8}/>
+                                  <span style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</span>
+                                </div>
+                              ) : null;
+                            })()}
+                            {/* 日時・件数 */}
+                            <div style={{ fontSize:13, color:C.sub, marginBottom:4 }}>
+                              {d2.savedAt ? new Date(d2.savedAt).toLocaleDateString("ja-JP", { year:"numeric", month:"long", day:"numeric" }) : "日時不明"}
+                            </div>
+                            <div style={{ fontSize:12, color:C.muted }}>
+                              {(d2.messages||[]).filter(m=>m.role==="user").length}往復の対話
+                              {r?.insights?.length ? `　／　気づき ${r.insights.length}件` : ""}
+                            </div>
+                          </div>
+                          <Btn variant="ghost" onClick={()=>{
+                            // 保存済みメッセージを復元して対話画面へ
+                            setMessages(d2.messages||[]);
+                            setSelectedTheme(d2.selectedTheme||null);
+                            setSessionDone(true);
+                            setPage("phase2");
+                          }} style={{ padding:"7px 16px", fontSize:12, display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+                            <MessageCircle size={13}/> 対話に戻る
+                          </Btn>
+                        </div>
+                      </div>
+                      <div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"8px 0" }}>
+                        ※ 現在は最新セッションのみ保存されます
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
+                <div style={{ display:"flex", gap:10 }}>
+                  <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                    <MessageCircle size={14}/> 新しいテーマで話す
+                  </Btn>
+                  {r && (
+                    <Btn variant="secondary" onClick={()=>setPage("report")} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                      <FileText size={14}/> レポートを見る
+                    </Btn>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <Card style={{ textAlign:"center", padding:48 }}>
+                <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
+                  <MessageCircle size={48} color={C.border} strokeWidth={1}/>
+                </div>
+                <div style={{ fontSize:17, fontWeight:700, marginBottom:10 }}>対話ログはまだありません</div>
+                <p style={{ color:C.sub, fontSize:14, marginBottom:28, lineHeight:1.8 }}>
+                  AIコンサルタントとの対話を始めると、<br/>ここに履歴と気づきが蓄積されます。
+                </p>
+                <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
+                  <MessageCircle size={15}/> AI対話を始める
+                </Btn>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════
+            タブ③：職務経歴（年表）
+        ════════════════════════════════════════════ */}
+        {activeTab === "career" && (
+          <div style={{ animation:"fadeUp 0.3s ease" }}>
+            {cs.filter(c=>c.company||c.role).length > 0 ? (
+              <div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, color:C.sub }}>
+                    <Clock size={16} strokeWidth={1.8}/>
+                    <span style={{ fontSize:13, color:C.muted }}>直近から表示</span>
+                  </div>
+                  <Btn variant="secondary" onClick={()=>{ setP1step(2); setPage("phase1"); }} style={{ padding:"6px 14px", fontSize:12 }}>編集</Btn>
+                </div>
+
+                {/* 年表 */}
+                <div style={{ position:"relative" }}>
+                  {/* 縦線 */}
+                  <div style={{ position:"absolute", left:20, top:0, bottom:0, width:2, background:`linear-gradient(to bottom, ${C.accent}, ${C.teal})`, borderRadius:2 }}/>
+
+                  <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+                    {cs.filter(c=>c.company||c.role).map((c, i, arr)=>(
+                      <div key={c.id} style={{ display:"flex", gap:0, paddingBottom: i < arr.length-1 ? 32 : 0 }}>
+                        {/* ドット */}
+                        <div style={{ position:"relative", flexShrink:0, width:42 }}>
+                          <div style={{ position:"absolute", left:12, top:16, width:18, height:18, borderRadius:"50%", background: i===0 ? C.accent : C.surface, border:`2.5px solid ${i===0?C.accent:C.teal}`, zIndex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                            {i===0 && <div style={{ width:6, height:6, borderRadius:"50%", background:"#fff" }}/>}
+                          </div>
+                        </div>
+
+                        {/* カード */}
+                        <div style={{ flex:1, background:C.surface, border:`1px solid ${i===0?C.accent+"66":C.border}`, borderRadius:14, padding:20, boxShadow: i===0 ? `0 2px 12px ${C.accent}18` : C.shadow }}>
+                          {/* 期間バッジ */}
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                            {c.period && (
+                              <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: i===0?C.accentL:C.bg, color: i===0?C.accent:C.muted, fontWeight:600, fontFamily:FM, border:`1px solid ${i===0?C.accent+"44":C.border}` }}>
+                                {c.period}
+                              </span>
+                            )}
+                            {i===0 && (
+                              <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:C.greenL, color:C.green, fontWeight:700, border:`1px solid ${C.green}44` }}>
+                                現在
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 会社名・役割 */}
+                          <div style={{ marginBottom:10 }}>
+                            <div style={{ fontSize:17, fontWeight:800, color:C.text, marginBottom:4 }}>{c.company||"会社名未入力"}</div>
+                            {c.role && (
+                              <div style={{ fontSize:14, fontWeight:600, color: i===0?C.accent:C.sub }}>{c.role}</div>
+                            )}
+                          </div>
+
+                          {/* 実績・業務 */}
+                          {c.achievements && (
+                            <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
+                              <div style={{ fontSize:11, fontWeight:700, color:C.muted, marginBottom:8, letterSpacing:"0.05em" }}>実績・担当業務</div>
+                              <div style={{ fontSize:13, color:C.sub, lineHeight:1.9, whiteSpace:"pre-wrap" }}>
+                                {c.achievements.split(/[。\n]/).filter(s=>s.trim()).map((sentence, j)=>(
+                                  <div key={j} style={{ display:"flex", gap:8, marginBottom:4 }}>
+                                    <span style={{ color:C.teal, flexShrink:0, fontWeight:700 }}>▸</span>
+                                    <span>{sentence.trim()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
+
+                    {/* 年表の終点 */}
+                    <div style={{ display:"flex", gap:0 }}>
+                      <div style={{ width:42, flexShrink:0, display:"flex", justifyContent:"center" }}>
+                        <div style={{ width:10, height:10, borderRadius:"50%", background:C.border, marginTop:4 }}/>
+                      </div>
+                      <div style={{ paddingTop:4 }}>
+                        <span style={{ fontSize:12, color:C.muted }}>キャリアのスタート</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-          </Card>
+              </div>
+            ) : (
+              <Card style={{ textAlign:"center", padding:48 }}>
+                <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
+                  <Building2 size={48} color={C.border} strokeWidth={1}/>
+                </div>
+                <div style={{ fontSize:17, fontWeight:700, marginBottom:10 }}>職務経歴が登録されていません</div>
+                <p style={{ color:C.sub, fontSize:14, marginBottom:28, lineHeight:1.8 }}>
+                  職歴を登録すると、ここに年表として表示されます。
+                </p>
+                <Btn onClick={()=>{ setP1step(2); setPage("phase1"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
+                  <Building2 size={15}/> 職務経歴を入力する
+                </Btn>
+              </Card>
+            )}
+          </div>
         )}
+
       </div>
     );
   }
