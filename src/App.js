@@ -42,7 +42,7 @@ const LEGAL = {
 };
 
 // ── Storage ───────────────────────────────────────────────────
-const KEY = "pathnote_v3";
+const KEY = "pathnote_v4";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
 const save = (d) => localStorage.setItem(KEY, JSON.stringify(d));
 
@@ -388,61 +388,91 @@ const THEMES = [
   { id:"free",     Icon:MessageSquare,label:"自由に話したい",             desc:"テーマを決めずに、今感じていることを話したい",        color:"#9097B8", opening:"今日はどんなことでもお話しいただける場です。今、仕事やキャリアのことで頭にあることを、自由に話していただけますか？" },
 ];
 
-const BASE_SYSTEM = `あなたは国家資格キャリアコンサルタントです。クライアントと1対1のカウンセリングセッションを行っています。
+const BASE_SYSTEM = `あなたは熟練したキャリアコンサルタントです。クライアントと話しています。
 
-【絶対に使ってはいけない言い回し】
-・「〜できてほしいですよね」→NG
-・「〜ということでしょうか？」→NG（解釈の押しつけ）
-・「〜というのは、つまり〜ということですか？」→NG
-・「〜ではないかと思います」→NG（コンサルタントの意見を言わない）
-・「〜したほうがいいですよね」→NG（アドバイスしない）
-・「それはつまり〜」→NG（勝手にまとめない）
-・質問に「というと」「つまり」「要するに」をつける→NG
+## 話し方のルール
 
-【自然な受け取り方の例】
-・「そうでしたか。」
-・「〇〇だったんですね。」（クライアントの言葉をそのまま使う）
-・「それはしんどかったですね。」
-・「嬉しかったんですね。」
-・「なるほど。」
+**絶対にやってはいけないこと**
+- 「〜ということでしょうか」と相手の言葉を言い換えて確認する
+- 「〜した方がいいと思います」とアドバイスする
+- 「それはすばらしいですね」と評価する
+- 一つの返答に質問を二つ以上入れる
+- 「なぜ」という言葉で質問する（責められている感じになるため）
+- 文末を「〜ですよね」で終える
+- カタカナ語・専門用語を使う
 
-【自然な質問の例】
-・「その時、どんな気持ちでしたか？」
-・「もう少し聞かせていただけますか？」
-・「具体的にはどんな場面でしたか？」
-・「そのとき、何が一番気になっていましたか？」
-・「〇〇というのは、どういうことですか？」
+**自然な受け答えの例**
+- 「そうなんですね。」
+- 「〇〇だったんですね。」（相手の言葉をそのまま使う）
+- 「それはつらかったですね。」
+- 「うれしかったんですね。」
+- 「もう少し聞かせてもらえますか？」
 
-【基本姿勢】
-・傾聴が最優先。クライアントの言葉を受け取ることが仕事
-・アドバイス・提案・評価・解釈は絶対にしない
-・クライアントが自分で気づくことを支援する
+**質問するときは一つだけ、シンプルに**
+良い例：「そのとき、どんな気持ちでしたか？」
+良い例：「具体的にはどんな場面でしたか？」
+良い例：「〇〇というのは、どういうことですか？」
+悪い例：「なぜそう思ったんですか？それはいつのことですか？」
 
-【会話の流れ】
-1. クライアントの言葉をそのまま繰り返す（ミラーリング）か、短く受け取る
-2. 必要なら感情に寄り添う一言を添える
-3. シンプルな質問を一つだけ投げかける
+## 会話の進め方
 
-【文体の厳格なルール】
-・自然な日本語の話し言葉で書く
-・1メッセージは2〜3文まで。短いほど良い
-・必ず疑問文で終わること（「〜ですか？」「〜でしたか？」「〜ますか？」）
-・質問は一文・一問のみ。補足説明を絶対に足さない
-・箇条書きは使わない
-・英語・カタカナ専門用語は使わない
-・重要な言葉は **太字** にする（例：**やりがい**、**自分らしさ**）`;
+1. 相手が言ったことを短く受け取る（「〇〇なんですね。」）
+2. 必要なら気持ちに寄り添う（「それはしんどかったですね。」）
+3. 一つだけ質問する
+
+## 文体
+
+- 話し言葉で自然に書く。書き言葉にならないよう注意
+- 一回の返答は2〜3文まで。短くていい
+- 必ず疑問文で終わる
+- 大事な言葉は **太字** にする（例：**やりがい**）`;
 
 const buildSystemPrompt = (themeId, profileSummary) => {
   const theme = THEMES.find(t => t.id === themeId) || THEMES[5];
   const guides = {
-    moyo:     `【今日のテーマ：仕事のもやもや】\nもやもやの背景にある感情・欲求を、一緒に探ります。\n・もやもやを感じた具体的な場面を聞く\n・「何がそんなに引っかかっているんだろう」という気持ちに共感する\n・評価・アドバイスは一切しない`,
-    taisetu:  `【今日のテーマ：仕事で大切にしていること】\n経験の中から、クライアントが大切にしてきたものを言語化するサポートをします。\n・具体的なエピソードを通じて価値観を探る\n・「そのとき、どんな気持ちでしたか？」で感情を引き出す\n・複数のエピソードに共通するものに気づいてもらう`,
-    tensyoku: `【今日のテーマ：転職について】\n転職の「理由」より「何を求めているか」を引き出すことに集中します。\n・転職したい気持ちの背景にある感情や経験を丁寧に聞く\n・焦りや不安があれば、まずそこに共感する`,
-    tsuyomi:  `【今日のテーマ：自分の強みを知る】\n経験談から、気づいていない強みを引き出します。\n・褒められた・感謝された経験を具体的に聞く\n・「そのとき、何を意識していましたか？」と聞く\n・「なぜできたと思いますか？」のような解釈を求める質問はしない`,
-    career:   `【今日のテーマ：これからのキャリア】\n未来の話をしながら、今の価値観や自己概念を探ります。\n・「なりたい姿」より「どんな状態でいたいか」「何を感じていたいか」を聞く\n・「わからない」という気持ちも大切な出発点として受け取る`,
-    free:     `【今日のテーマ：自由対話】\nクライアントが話したいことを中心に進めます。\n・最初の話題をじっくり深掘りする\n・クライアントのペースを最優先する`,
+    moyo: `
+## 今日のテーマ：仕事のもやもや
+もやもやの裏にある気持ちや欲求を、一緒に探っていきます。
+- もやもやする具体的な場面を聞く
+- 評価・アドバイスは絶対にしない
+- 「何がそんなに気になるんだろう」という感覚に共感する`,
+    taisetu: `
+## 今日のテーマ：仕事で大切にしていること
+経験の中から、大切にしてきたものを言葉にするお手伝いをします。
+- 具体的なエピソードを通じて価値観を探る
+- 「そのとき、どんな気持ちでしたか？」で感情を引き出す
+- 複数の話に共通するものに気づいてもらう`,
+    tensyoku: `
+## 今日のテーマ：転職について
+「何から離れたいか」より「何に向かいたいか」を引き出します。
+- 転職を考え始めた気持ちの背景を丁寧に聞く
+- 焦りや不安があれば、まずそこに共感する`,
+    tsuyomi: `
+## 今日のテーマ：自分の強みを知りたい
+経験の中から、本人も気づいていない強みを引き出します。
+- 褒められた・感謝された経験を具体的に聞く
+- 「そのとき、何を考えながらやっていましたか？」と聞く
+- 「なぜできたと思いますか？」は使わない`,
+    career: `
+## 今日のテーマ：これからのキャリア
+未来の話をしながら、今の価値観を探ります。
+- 「なりたい姿」より「どんな状態でいたいか」を聞く
+- 「わからない」という気持ちも大事な出発点として受け取る`,
+    free: `
+## 今日のテーマ：自由に話す
+相手が話したいことを中心に進めます。
+- 最初の話題をじっくり深掘りする
+- 相手のペースを最優先する`,
   };
-  return `${BASE_SYSTEM}\n\n${guides[themeId]||guides.free}\n\n【クライアント情報（参考）】\n${profileSummary}\n\n最初のメッセージは以下の文で始めてください（変更しないでください）：\n「${theme.opening}」`;
+  return `${BASE_SYSTEM}
+
+${guides[themeId]||guides.free}
+
+## クライアント情報（参考）
+${profileSummary}
+
+最初のメッセージは必ず次の文から始めてください：
+「${theme.opening}」`;
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -462,6 +492,7 @@ export default function App() {
   const [reportLoading, setReportLoading] = useState(false);
   const [activeTab, setActiveTab]         = useState("note");
   const [selectedTheme, setSelectedTheme] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
 
   const chatEndRef = useRef(null);
   const inputRef   = useRef(null);
@@ -493,6 +524,22 @@ export default function App() {
     setData(nd); save(nd);
   };
 
+  // セッションを保存（新規追加 or 更新）
+  const persistSession = (sessionUpdates) => {
+    const existing = (data?.sessions||[]);
+    const sid = currentSessionId;
+    let sessions;
+    if (sid && existing.find(s=>s.id===sid)) {
+      sessions = existing.map(s => s.id===sid ? { ...s, ...sessionUpdates, updatedAt: new Date().toISOString() } : s);
+    } else {
+      const newSession = { id: sid||Date.now().toString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...sessionUpdates };
+      sessions = [newSession, ...existing];
+      if (!sid) setCurrentSessionId(newSession.id);
+    }
+    const nd = { ...(data||{}), basic, careers, skillMap, sessions, phase2Done:true, savedAt: new Date().toISOString() };
+    setData(nd); save(nd);
+  };
+
   const toggleReason = (r) => setBasic(prev => ({
     ...prev,
     changeReason: prev.changeReason.includes(r) ? prev.changeReason.filter(x=>x!==r) : [...prev.changeReason, r]
@@ -512,6 +559,8 @@ export default function App() {
   };
 
   const startConsulting = async (themeId) => {
+    const newId = Date.now().toString();
+    setCurrentSessionId(newId);
     setSelectedTheme(themeId);
     setMessages([{ role:"assistant", content:"" }]);
     setAiTyping(true);
@@ -545,7 +594,7 @@ export default function App() {
         (partial) => { finalReply = partial; setMessages([...newMessages, { role:"assistant", content:partial }]); }
       );
       if (isNearEnd) setSessionDone(true);
-      persist({ messages:[...newMessages, { role:"assistant", content:finalReply }], selectedTheme });
+      persistSession({ themeId: selectedTheme, messages:[...newMessages, { role:"assistant", content:finalReply }] });
     } catch {
       setMessages([...newMessages, { role:"assistant", content:"申し訳ありません。エラーが発生しました。もう一度送信してください。" }]);
     }
@@ -557,10 +606,28 @@ export default function App() {
     try {
       const conversation = messages.map(m=>`${m.role==="user"?"クライアント":"コンサルタント"}: ${m.content}`).join("\n");
       const profileSummary = `職歴: ${careers.map(c=>`${c.company} ${c.role}`).join("、")}、スキル: ${Object.keys(skillMap).join("、")}`;
-      const prompt = `以下はキャリアコンサルティングの対話記録です。この内容をもとに自己理解レポートを作成してください。JSONのみで返答してください（説明文・マークダウン不要）。\n\nプロフィール: ${profileSummary}\nテーマ: ${THEMES.find(t=>t.id===selectedTheme)?.label||"自由対話"}\n\n対話記録:\n${conversation}\n\n以下のJSON形式のみで返答:\n{"strengths":["強み1","強み2","強み3"],"softSkills":["ソフトスキル1","ソフトスキル2","ソフトスキル3"],"values":["価値観1","価値観2","価値観3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextSteps":["次のアクション1","次のアクション2","次のアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）","insights":[{"label":"端的なキーワード（10文字以内）","text":"この気づきの背景・意味・なぜ重要かを具体的に説明（2〜3文）"}]}\n\ninsightsのルール：\n- labelは「〇〇を重視」「△△が強み」のように10文字以内の端的な表現にすること\n- textは「なぜそれが重要か」「どんな場面で発揮されるか」など具体的な解説を2〜3文で書くこと。「対話を通じて明確になりました」などの冗長な表現は使わない\n- 3〜5個抽出すること`;
+      const prompt = `以下はキャリアコンサルティングの対話記録です。JSONのみで返答してください（説明文・マークダウン不要）。
+
+プロフィール: ${profileSummary}
+テーマ: ${THEMES.find(t=>t.id===selectedTheme)?.label||"自由対話"}
+
+対話記録:
+${conversation}
+
+以下のJSON形式のみで返答:
+{"strengths":["強み1","強み2","強み3"],"softSkills":["対人関係力","コミュニケーション力","〜力など対話から見えたソフトスキル"],"values":["価値観1","価値観2","価値観3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextSteps":["次のアクション1","次のアクション2","次のアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）","insights":[{"label":"端的なキーワード（10文字以内）","text":"この気づきの背景・意味・なぜ重要かを具体的に説明（2〜3文）"}]}
+
+ルール：
+- strengths：対話の中で語られたエピソードから見えた「行動・思考・姿勢」の強み。3〜4個
+- softSkills：対話から見えた対人・思考・感情面のスキル（例：傾聴力、巻き込み力、粘り強さ）。3〜4個。ハードスキル（Excel等）は含めない
+- values：大切にしていること・譲れないこと。3〜4個
+- insightsのlabelは10文字以内の端的な表現。textは「なぜ重要か」「どんな場面で発揮されるか」を具体的に2〜3文で説明。「対話を通じて明確になりました」などの冗長な表現は使わない
+- insights：3〜5個`;
       const result = await callAIJSON([{ role:"user", content:prompt }]);
       setReport(result);
-      persist({ report:result, phase2Done:true, messages, selectedTheme });
+      // セッションにinsightsを紐づけて保存
+      persistSession({ themeId: selectedTheme, messages, insights: result.insights||[] });
+      persist({ report:result, phase2Done:true, selectedTheme });
       setPage("report");
     } catch(e) {
       alert(`レポート生成エラー: ${e.message}`);
@@ -1196,91 +1263,152 @@ export default function App() {
         ════════════════════════════════════════════ */}
         {activeTab === "note" && (
           <div style={{ animation:"fadeUp 0.3s ease" }}>
-            {r ? (
-              <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+            {r ? (() => {
+              // ── 複数セッションから強み・ソフトスキル・価値観をスコアリング ──
+              const sessions = d2.sessions || [];
+              const now = Date.now();
+              const DAY = 86400000;
 
-                {/* キャリアの軸 */}
-                <Card style={{ borderLeft:`4px solid ${C.teal}`, borderRadius:"0 16px 16px 0" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.teal }}>
-                    <Compass size={18} strokeWidth={1.8}/>
-                    <span style={{ fontSize:15, fontWeight:700 }}>キャリアの軸</span>
-                  </div>
-                  <p style={{ color:C.text, fontSize:15, lineHeight:2, fontWeight:500 }}>{r.careerAxis}</p>
-                </Card>
+              // セッションごとに時間的重みを計算（新しいほど高い）
+              const scoreItem = (items, sessionDate) => {
+                const age = (now - new Date(sessionDate||now).getTime()) / DAY;
+                const weight = age < 7 ? 3 : age < 30 ? 2 : 1;
+                return (items||[]).map(item => ({ item, weight }));
+              };
 
-                {/* 強み・ソフトスキル・価値観 */}
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:14 }}>
-                  {[
-                    { label:"強み",       Icon:Award,    items:r.strengths,  color:C.accent },
-                    { label:"ソフトスキル", Icon:Sparkles, items:r.softSkills, color:C.teal },
-                    { label:"価値観",     Icon:Heart,    items:r.values,     color:C.gold },
-                  ].map(section=>(
-                    <Card key={section.label} style={{ padding:20 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:14, color:section.color }}>
-                        <section.Icon size={16} strokeWidth={1.8}/>
-                        <span style={{ fontSize:14, fontWeight:700 }}>{section.label}</span>
+              const aggregate = (field) => {
+                const map = {};
+                // 最新レポート
+                (r[field]||[]).forEach(item => { map[item] = (map[item]||0) + 3; });
+                // 過去セッション
+                sessions.forEach(s => {
+                  if (!s.insights) return;
+                  const age = (now - new Date(s.createdAt||now).getTime()) / DAY;
+                  const w = age < 7 ? 3 : age < 30 ? 2 : 1;
+                  // insightsのlabelを強みとして加算
+                  (s.insights||[]).forEach(ins => { map[ins.label] = (map[ins.label]||0) + w; });
+                });
+                return Object.entries(map)
+                  .sort((a,b) => b[1]-a[1])
+                  .map(([item, score]) => ({ item, score }));
+              };
+
+              const scoredStrengths  = aggregate("strengths");
+              const scoredSoftSkills = aggregate("softSkills");
+              const scoredValues     = aggregate("values");
+              const maxSessions      = sessions.length;
+
+              return (
+                <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+
+                  {/* キャリアの軸 */}
+                  <Card style={{ borderLeft:`4px solid ${C.teal}`, borderRadius:"0 16px 16px 0" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.teal }}>
+                      <Compass size={18} strokeWidth={1.8}/>
+                      <span style={{ fontSize:15, fontWeight:700 }}>キャリアの軸</span>
+                    </div>
+                    <p style={{ color:C.text, fontSize:15, lineHeight:2, fontWeight:500 }}>{r.careerAxis}</p>
+                  </Card>
+
+                  {/* 強み（スコア順） */}
+                  {scoredStrengths.length > 0 && (
+                    <Card>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
+                          <Award size={18} strokeWidth={1.8}/>
+                          <span style={{ fontSize:15, fontWeight:700 }}>強み</span>
+                        </div>
+                        {maxSessions > 1 && <span style={{ fontSize:11, color:C.muted }}>{maxSessions}回の対話から優先度順に表示</span>}
                       </div>
                       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                        {(section.items||[]).map((item,i)=>(
-                          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px", background:`${section.color}0D`, borderRadius:8 }}>
-                            <span style={{ color:section.color, fontWeight:700, flexShrink:0, fontSize:12, marginTop:1 }}>▸</span>
-                            <span style={{ fontSize:13, color:C.text, lineHeight:1.7, wordBreak:"keep-all", overflowWrap:"anywhere" }}>{item}</span>
+                        {scoredStrengths.map(({item, score}, i)=>(
+                          <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:i===0?C.accentL:`${C.accent}07`, borderRadius:10, border:`1px solid ${i===0?C.accent+"44":C.border}` }}>
+                            <div style={{ width:22, height:22, borderRadius:"50%", background:i===0?C.accent:C.border, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, flexShrink:0 }}>{i+1}</div>
+                            <span style={{ fontSize:14, color:C.text, lineHeight:1.7, fontWeight:i===0?600:400, wordBreak:"keep-all", overflowWrap:"anywhere", flex:1 }}>{item}</span>
+                            {maxSessions > 1 && score > 3 && <span style={{ fontSize:10, color:C.accent, fontWeight:700, flexShrink:0 }}>複数回</span>}
                           </div>
                         ))}
                       </div>
                     </Card>
-                  ))}
-                </div>
+                  )}
 
-                {/* 自己PR */}
-                <Card style={{ background:C.goldL, border:`1px solid ${C.gold}44` }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.gold }}>
-                    <PenLine size={18} strokeWidth={1.8}/>
-                    <span style={{ fontSize:15, fontWeight:700, whiteSpace:"nowrap" }}>自己PRのベース</span>
-                  </div>
-                  <p style={{ color:C.text, fontSize:14, lineHeight:2 }}>{r.selfPR}</p>
-                  <div style={{ fontSize:11, color:C.muted, marginTop:10 }}>※このテキストをベースに仕上げてください</div>
-                </Card>
-
-                {/* ハードスキル */}
-                {skillCount > 0 && (
-                  <Card>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
-                        <Wrench size={18} strokeWidth={1.8}/>
-                        <span style={{ fontSize:15, fontWeight:700 }}>ハードスキル</span>
-                        <span style={{ fontSize:12, color:C.muted, fontFamily:FM }}>{skillCount}個</span>
-                      </div>
-                      <Btn variant="secondary" onClick={()=>{ setP1step(3); setPage("phase1"); }} style={{ padding:"5px 12px", fontSize:12 }}>編集</Btn>
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-                      {SKILL_CATS.map(cat=>{
-                        const mySkills = cat.skills.filter(s=>sm[s]);
-                        if (!mySkills.length) return null;
-                        return (
-                          <div key={cat.label}>
-                            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
-                              <cat.Icon size={14} color={cat.color} strokeWidth={1.8}/>
-                              <span style={{ fontSize:12, fontWeight:700, color:cat.color }}>{cat.label}</span>
-                            </div>
-                            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                              {mySkills.map(skill=>(
-                                <div key={skill} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", background:C.bg, border:`1px solid ${cat.color}44`, borderRadius:20 }}>
-                                  <span style={{ fontSize:13, color:C.text, fontWeight:500 }}>{skill}</span>
-                                  <span style={{ fontSize:11, color:cat.color, fontFamily:FM, fontWeight:600 }}>{sm[skill]}</span>
-                                </div>
-                              ))}
-                            </div>
+                  {/* ソフトスキル・価値観（2カラム） */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:14 }}>
+                    {[
+                      { label:"ソフトスキル", Icon:Sparkles, scored:scoredSoftSkills, color:C.teal, desc:"対話から見えた対人・思考スキル" },
+                      { label:"価値観",       Icon:Heart,    scored:scoredValues,     color:C.gold, desc:"大切にしていること" },
+                    ].map(section=>(
+                      <Card key={section.label} style={{ padding:20 }}>
+                        <div style={{ marginBottom:14 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:7, color:section.color, marginBottom:4 }}>
+                            <section.Icon size={16} strokeWidth={1.8}/>
+                            <span style={{ fontSize:14, fontWeight:700 }}>{section.label}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </Card>
-                )}
+                          <div style={{ fontSize:11, color:C.muted }}>{section.desc}</div>
+                        </div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                          {section.scored.map(({item, score}, i)=>(
+                            <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px", background:`${section.color}0D`, borderRadius:8 }}>
+                              <span style={{ color:section.color, fontWeight:700, flexShrink:0, fontSize:12, marginTop:1 }}>▸</span>
+                              <span style={{ fontSize:13, color:C.text, lineHeight:1.7, wordBreak:"keep-all", overflowWrap:"anywhere" }}>{item}</span>
+                              {maxSessions > 1 && score > 3 && <span style={{ fontSize:10, color:section.color, fontWeight:700, flexShrink:0, marginTop:2 }}>↑</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
 
-              </div>
-            ) : (
-              /* レポート未作成 */
+                  {/* 自己PR */}
+                  <Card style={{ background:C.goldL, border:`1px solid ${C.gold}44` }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.gold }}>
+                      <PenLine size={18} strokeWidth={1.8}/>
+                      <span style={{ fontSize:15, fontWeight:700, whiteSpace:"nowrap" }}>自己PRのベース</span>
+                    </div>
+                    <p style={{ color:C.text, fontSize:14, lineHeight:2 }}>{r.selfPR}</p>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:10 }}>※このテキストをベースに仕上げてください</div>
+                  </Card>
+
+                  {/* ハードスキル */}
+                  {skillCount > 0 && (
+                    <Card>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
+                          <Wrench size={18} strokeWidth={1.8}/>
+                          <div>
+                            <span style={{ fontSize:15, fontWeight:700 }}>ハードスキル</span>
+                            <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>棚卸しで登録したスキル・経験年数</div>
+                          </div>
+                        </div>
+                        <Btn variant="secondary" onClick={()=>{ setP1step(3); setPage("phase1"); }} style={{ padding:"5px 12px", fontSize:12 }}>編集</Btn>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+                        {SKILL_CATS.map(cat=>{
+                          const mySkills = cat.skills.filter(s=>sm[s]);
+                          if (!mySkills.length) return null;
+                          return (
+                            <div key={cat.label}>
+                              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+                                <cat.Icon size={14} color={cat.color} strokeWidth={1.8}/>
+                                <span style={{ fontSize:12, fontWeight:700, color:cat.color }}>{cat.label}</span>
+                              </div>
+                              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                                {mySkills.map(skill=>(
+                                  <div key={skill} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", background:`${cat.color}0D`, border:`1px solid ${cat.color}33`, borderRadius:20 }}>
+                                    <span style={{ fontSize:13, color:C.text, fontWeight:500 }}>{skill}</span>
+                                    <span style={{ fontSize:10, color:cat.color, fontFamily:FM, fontWeight:600 }}>{sm[skill]}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  )}
+                </div>
+              );
+            })() : (
               <Card style={{ textAlign:"center", padding:48 }}>
                 <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
                   <BookOpen size={48} color={C.border} strokeWidth={1}/>
@@ -1289,14 +1417,11 @@ export default function App() {
                 <p style={{ color:C.sub, fontSize:14, marginBottom:28, lineHeight:1.8 }}>
                   AIコンサルタントとの対話を通じて、<br/>あなたのキャリアの軸・強み・価値観を言語化します。
                 </p>
-                {skillCount > 0 && (
-                  <div style={{ marginBottom:16 }}>
-                    <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
-                      <MessageCircle size={15}/> AI対話を始める
-                    </Btn>
-                  </div>
-                )}
-                {!skillCount && (
+                {skillCount > 0 ? (
+                  <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
+                    <MessageCircle size={15}/> AI対話を始める
+                  </Btn>
+                ) : (
                   <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
                     <ClipboardList size={15}/> スキルの棚卸しから始める
                   </Btn>
@@ -1311,106 +1436,94 @@ export default function App() {
         ════════════════════════════════════════════ */}
         {activeTab === "dialogue" && (
           <div style={{ animation:"fadeUp 0.3s ease" }}>
-            {(r?.insights||[]).length > 0 || (d2.messages||[]).length > 0 ? (
-              <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-
-                {/* 明確になったこと */}
-                {(r?.insights||[]).length > 0 && (
-                  <Card>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:18, color:C.teal }}>
-                      <Lightbulb size={18} strokeWidth={1.8}/>
-                      <div>
-                        <div style={{ fontSize:15, fontWeight:700 }}>対話を通じて明確になったこと</div>
-                        <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
-                          {THEMES.find(t=>t.id===d2.selectedTheme)?.label||"AIコンサルティング"} セッションより
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                      {(r.insights||[]).map((ins,i)=>(
-                        <div key={i} style={{ padding:"14px 16px", background:C.tealL, borderRadius:12, border:`1px solid ${C.teal}22` }}>
-                          <div style={{ display:"inline-block", padding:"2px 10px", borderRadius:12, background:C.teal, color:"#fff", fontSize:11, fontWeight:700, marginBottom:8 }}>{ins.label}</div>
-                          <div style={{ fontSize:13, color:C.sub, lineHeight:1.8 }}>{ins.text}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-
-                {/* 対話セッション履歴一覧 */}
-                {(d2.messages||[]).length > 0 && (
-                  <Card>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:18, color:C.sub }}>
-                      <ScrollText size={18} strokeWidth={1.8}/>
-                      <div style={{ fontSize:15, fontWeight:700, color:C.text }}>対話セッション履歴</div>
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                      {/* 最新セッション */}
-                      <div style={{ padding:"16px 20px", background:C.bg, borderRadius:12, border:`1px solid ${C.border}` }}>
-                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
-                          <div>
-                            {/* テーマ */}
-                            {d2.selectedTheme && (() => {
-                              const t = THEMES.find(x=>x.id===d2.selectedTheme);
-                              return t ? (
-                                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-                                  <t.Icon size={14} color={t.color} strokeWidth={1.8}/>
-                                  <span style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</span>
-                                </div>
-                              ) : null;
-                            })()}
-                            {/* 日時・件数 */}
-                            <div style={{ fontSize:13, color:C.sub, marginBottom:4 }}>
-                              {d2.savedAt ? new Date(d2.savedAt).toLocaleDateString("ja-JP", { year:"numeric", month:"long", day:"numeric" }) : "日時不明"}
-                            </div>
-                            <div style={{ fontSize:12, color:C.muted }}>
-                              {(d2.messages||[]).filter(m=>m.role==="user").length}往復の対話
-                              {r?.insights?.length ? `　／　気づき ${r.insights.length}件` : ""}
-                            </div>
-                          </div>
-                          <Btn variant="ghost" onClick={()=>{
-                            // 保存済みメッセージを復元して対話画面へ
-                            setMessages(d2.messages||[]);
-                            setSelectedTheme(d2.selectedTheme||null);
-                            setSessionDone(true);
-                            setPage("phase2");
-                          }} style={{ padding:"7px 16px", fontSize:12, display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
-                            <MessageCircle size={13}/> 対話に戻る
-                          </Btn>
-                        </div>
-                      </div>
-                      <div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"8px 0" }}>
-                        ※ 現在は最新セッションのみ保存されます
-                      </div>
-                    </div>
-                  </Card>
-                )}
-
-                <div style={{ display:"flex", gap:10 }}>
-                  <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-                    <MessageCircle size={14}/> 新しいテーマで話す
-                  </Btn>
-                  {r && (
-                    <Btn variant="secondary" onClick={()=>setPage("report")} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-                      <FileText size={14}/> レポートを見る
-                    </Btn>
-                  )}
+            {(r?.insights||[]).length > 0 && (
+              <Card style={{ marginBottom:20 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:18, color:C.teal }}>
+                  <Lightbulb size={18} strokeWidth={1.8}/>
+                  <div>
+                    <div style={{ fontSize:15, fontWeight:700 }}>対話を通じて明確になったこと</div>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>最新レポートより</div>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <Card style={{ textAlign:"center", padding:48 }}>
-                <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
-                  <MessageCircle size={48} color={C.border} strokeWidth={1}/>
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {(r.insights||[]).map((ins,i)=>(
+                    <div key={i} style={{ padding:"14px 16px", background:C.tealL, borderRadius:12, border:`1px solid ${C.teal}22` }}>
+                      <div style={{ display:"inline-block", padding:"2px 10px", borderRadius:12, background:C.teal, color:"#fff", fontSize:11, fontWeight:700, marginBottom:8 }}>{ins.label}</div>
+                      <div style={{ fontSize:13, color:C.sub, lineHeight:1.8 }}>{ins.text}</div>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ fontSize:17, fontWeight:700, marginBottom:10 }}>対話ログはまだありません</div>
-                <p style={{ color:C.sub, fontSize:14, marginBottom:28, lineHeight:1.8 }}>
-                  AIコンサルタントとの対話を始めると、<br/>ここに履歴と気づきが蓄積されます。
-                </p>
-                <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
-                  <MessageCircle size={15}/> AI対話を始める
-                </Btn>
               </Card>
             )}
+
+            {/* セッション一覧 */}
+            <Card>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:18 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, color:C.sub }}>
+                  <ScrollText size={18} strokeWidth={1.8}/>
+                  <div style={{ fontSize:15, fontWeight:700, color:C.text }}>対話セッション履歴</div>
+                </div>
+                <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"7px 14px", fontSize:12, display:"flex", alignItems:"center", gap:5, whiteSpace:"nowrap" }}>
+                  <MessageCircle size={13}/> 新しい対話
+                </Btn>
+              </div>
+
+              {(d2.sessions||[]).length === 0 ? (
+                <div style={{ textAlign:"center", padding:"32px 0", color:C.muted }}>
+                  <MessageCircle size={36} color={C.border} strokeWidth={1} style={{ display:"block", margin:"0 auto 12px" }}/>
+                  <div style={{ fontSize:14 }}>まだ対話履歴がありません</div>
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  {(d2.sessions||[]).map((session, i)=>{
+                    const t = THEMES.find(x=>x.id===session.themeId);
+                    const date = session.createdAt ? new Date(session.createdAt).toLocaleDateString("ja-JP", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "日時不明";
+                    const turns = (session.messages||[]).filter(m=>m.role==="user").length;
+                    const hasInsights = (session.insights||[]).length > 0;
+                    const isLatest = i === 0;
+                    return (
+                      <div key={session.id} style={{ padding:"16px 18px", background: isLatest ? C.accentL : C.bg, borderRadius:12, border:`1px solid ${isLatest?C.accent+"44":C.border}` }}>
+                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+                              {isLatest && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:C.accent, color:"#fff", fontWeight:700, flexShrink:0 }}>最新</span>}
+                              {t && (
+                                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                  <t.Icon size={13} color={t.color} strokeWidth={1.8}/>
+                                  <span style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ fontSize:12, color:C.sub, marginBottom:4 }}>{date}</div>
+                            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                              <span style={{ fontSize:11, color:C.muted }}>{turns}往復の対話</span>
+                              {hasInsights && <span style={{ fontSize:11, color:C.teal, fontWeight:600 }}>気づき {session.insights.length}件</span>}
+                            </div>
+                            {/* insightsプレビュー */}
+                            {hasInsights && (
+                              <div style={{ marginTop:10, display:"flex", flexWrap:"wrap", gap:6 }}>
+                                {session.insights.map((ins,j)=>(
+                                  <span key={j} style={{ fontSize:11, padding:"2px 9px", borderRadius:12, background:C.teal+"18", color:C.teal, border:`1px solid ${C.teal}33`, fontWeight:600 }}>{ins.label}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <button onClick={()=>{
+                            setMessages(session.messages||[]);
+                            setSelectedTheme(session.themeId||null);
+                            setCurrentSessionId(session.id);
+                            setSessionDone(true);
+                            setPage("phase2");
+                          }} style={{ flexShrink:0, display:"flex", alignItems:"center", gap:5, padding:"7px 14px", borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.sub, cursor:"pointer", fontSize:12, fontFamily:F, whiteSpace:"nowrap" }}>
+                            <MessageCircle size={12}/> 対話に戻る
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
           </div>
         )}
 
@@ -1521,3 +1634,4 @@ export default function App() {
 
   return null;
 }
+
