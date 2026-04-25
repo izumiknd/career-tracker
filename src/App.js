@@ -864,38 +864,38 @@ export default function App() {
           </Card>
 
           <Card style={{ marginBottom:24, padding:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>登録スキル（{Object.keys(skillMap).length}個）</div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
+                <Wrench size={15} strokeWidth={1.8}/>
+                <span style={{ fontSize:13, fontWeight:700, color:C.accent }}>ハードスキル（{Object.keys(skillMap).length}個）</span>
+              </div>
               <button onClick={()=>setP1step(3)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline" }}>編集</button>
             </div>
             {Object.keys(skillMap).length === 0 ? (
               <div style={{ fontSize:13, color:C.muted }}>未選択</div>
             ) : (
-              SKILL_CATS.map(cat=>{
-                const mySkills = cat.skills.filter(s=>skillMap[s]);
-                if (!mySkills.length) return null;
-                return (
-                  <div key={cat.label} style={{ marginBottom:14 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-                      <cat.Icon size={13} color={cat.color} strokeWidth={1.8}/>
-                      <span style={{ fontSize:12, fontWeight:700, color:cat.color }}>{cat.label}</span>
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                      {mySkills.map(skill=>(
-                        <div key={skill}>
-                          <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.sub, marginBottom:3 }}>
-                            <span>{skill}</span>
-                            <span style={{ fontFamily:FM, fontSize:11, color:C.muted }}>{skillMap[skill]}</span>
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                {SKILL_CATS.map(cat=>{
+                  const mySkills = cat.skills.filter(s=>skillMap[s]);
+                  if (!mySkills.length) return null;
+                  return (
+                    <div key={cat.label}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+                        <cat.Icon size={12} color={cat.color} strokeWidth={1.8}/>
+                        <span style={{ fontSize:11, fontWeight:700, color:cat.color }}>{cat.label}</span>
+                      </div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                        {mySkills.map(skill=>(
+                          <div key={skill} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", background:`${cat.color}0D`, border:`1px solid ${cat.color}33`, borderRadius:20 }}>
+                            <span style={{ fontSize:12, color:C.text, fontWeight:500 }}>{skill}</span>
+                            <span style={{ fontSize:10, color:cat.color, fontFamily:FM, fontWeight:600 }}>{skillMap[skill]}</span>
                           </div>
-                          <div style={{ background:C.border, borderRadius:99, height:5, overflow:"hidden" }}>
-                            <div style={{ width:`${YEAR_NUM[skillMap[skill]]||0}%`, height:"100%", background:cat.color, borderRadius:99 }}/>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
           </Card>
 
@@ -932,6 +932,32 @@ export default function App() {
         <h1 style={{ fontSize:24, fontWeight:800, marginBottom:10 }}>今日話したいテーマを選んでください</h1>
         <p style={{ color:C.sub, fontSize:14, lineHeight:1.7 }}>選んだテーマに合わせて、AIコンサルタントが<br/>対話のスタイルを変えてお話しします。</p>
       </div>
+
+      {/* ハードスキルプレビュー */}
+      {Object.keys(skillMap).length > 0 && (
+        <Card style={{ marginBottom:28, padding:20 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
+              <Wrench size={15} strokeWidth={1.8}/>
+              <span style={{ fontSize:13, fontWeight:700 }}>登録済みハードスキル</span>
+              <span style={{ fontSize:11, color:C.muted, fontFamily:FM }}>({Object.keys(skillMap).length}個)</span>
+            </div>
+            <button onClick={()=>{ setP1step(3); setPage("phase1"); }} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:F }}>編集</button>
+          </div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+            {SKILL_CATS.flatMap(cat=>
+              cat.skills.filter(s=>skillMap[s]).map(skill=>(
+                <div key={skill} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 11px", background:`${cat.color}0D`, border:`1px solid ${cat.color}33`, borderRadius:20 }}>
+                  <cat.Icon size={10} color={cat.color} strokeWidth={2}/>
+                  <span style={{ fontSize:12, color:C.text, fontWeight:500 }}>{skill}</span>
+                  <span style={{ fontSize:10, color:cat.color, fontFamily:FM, fontWeight:600 }}>{skillMap[skill]}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
+
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:32 }}>
         {THEMES.map(theme=>(
           <button key={theme.id} onClick={()=>{ setPage("phase2"); startConsulting(theme.id); }}
