@@ -540,6 +540,14 @@ export default function App() {
     setData(nd); save(nd);
   };
 
+  // ── ガイド対話 state ──────────────────────────────────────
+  const [sessionStep, setSessionStep]   = useState(0);   // 現在の質問ステップ
+  const [sessionAnswers, setSessionAnswers] = useState([]); // 回答履歴
+  const [currentQ, setCurrentQ]         = useState(null); // 現在の質問オブジェクト
+  const [freeInput, setFreeInput]       = useState("");   // 自由記述入力
+  const [showFree, setShowFree]         = useState(false);
+  const [sessionPhase, setSessionPhase] = useState("intro");
+
   const toggleReason = (r) => setBasic(prev => ({
     ...prev,
     changeReason: prev.changeReason.includes(r) ? prev.changeReason.filter(x=>x!==r) : [...prev.changeReason, r]
@@ -549,6 +557,140 @@ export default function App() {
   const updateCareer = (id, field, val) => setCareers(prev => prev.map(c=>c.id===id?{...c,[field]:val}:c));
   const toggleSkill  = (skill) => setSkillMap(prev => { const n={...prev}; if(n[skill]) delete n[skill]; else n[skill]="半年未満"; return n; });
   const setYears     = (skill, y) => setSkillMap(prev => ({...prev,[skill]:y}));
+
+  // ── 固定導入質問（テーマ別） ──────────────────────────────
+  const INTRO_QUESTIONS = {
+    moyo: [
+      { id:"m1", q:"最近、仕事でモヤモヤした場面はありましたか？", choices:["会議や打ち合わせで","上司や同僚との関係で","仕事の内容・やり方で","評価や待遇で"], alt:"m1b" },
+      { id:"m1b", q:"最近、「なんか違うな」と感じた瞬間はありますか？", choices:["仕事を頼まれたとき","自分の仕事を見直したとき","他の人の働き方を見たとき","特定の業務をやっているとき"], alt:null },
+    ],
+    taisetu: [
+      { id:"t1", q:"これまでの仕事で、「これだけは大切にしてきた」と思うことはありますか？", choices:["誠実さ・誠実に向き合う","質・完成度へのこだわり","人との信頼関係","自分で考えて動くこと"], alt:"t1b" },
+      { id:"t1b", q:"仕事で「これをやっているとき、自分らしいな」と感じる場面は？", choices:["誰かをサポートしているとき","アイデアを出しているとき","丁寧に仕上げているとき","人に説明・伝えているとき"], alt:null },
+    ],
+    tensyoku: [
+      { id:"te1", q:"転職を考え始めたのは、どんなきっかけからですか？", choices:["今の仕事に限界を感じた","やりたいことが別にある","環境（人・会社）が合わない","収入・待遇への不満"], alt:"te1b" },
+      { id:"te1b", q:"今の仕事を続けながら、何か「欠けている」と感じるものはありますか？", choices:["やりがい・手応え","成長できている感覚","人間関係・チームの雰囲気","プライベートとのバランス"], alt:null },
+    ],
+    tsuyomi: [
+      { id:"s1", q:"周りから「ありがとう」や「助かった」と言われた経験で思い浮かぶものはありますか？", choices:["仕事を丁寧に仕上げたとき","困っている人をサポートしたとき","アイデアや提案が採用されたとき","場を取りまとめたとき"], alt:"s1b" },
+      { id:"s1b", q:"「自分が当たり前にやっていること」で、他の人が意外と苦手そうにしていることはありますか？", choices:["細かいことへの気配り","段取りを組むこと","人の話を聞くこと","わかりやすく整理すること"], alt:null },
+    ],
+    career: [
+      { id:"c1", q:"5年後、どんな状態でいたいですか？（なんとなくで大丈夫です）", choices:["専門性を深めていたい","マネジメント・リーダーをやっていたい","独立・起業していたい","ワークライフバランスが整っている"], alt:"c1b" },
+      { id:"c1b", q:"どんな仕事をしているとき、時間を忘れて集中できますか？", choices:["人と話したり相談したりするとき","何かを作り上げているとき","情報を調べて整理するとき","計画を立てて実行するとき"], alt:null },
+    ],
+    free: [
+      { id:"f1", q:"最近の仕事で、印象に残っていることを一つ教えてください。", choices:["うまくいったこと","つらかったこと","モヤモヤしたこと","意外と楽しかったこと"], alt:"f1b" },
+      { id:"f1b", q:"今日、一番話してみたいテーマはどれですか？", choices:["自分の強みについて","仕事のモヤモヤについて","これからのキャリアについて","大切にしていることについて"], alt:null },
+    ],
+  };
+
+  // ガイド対話を開始
+  const startGuidedSession = (themeId) => {
+    const newId = Date.now().toString();
+    setCurrentSessionId(newId);
+    setSelectedTheme(themeId);
+    setSessionAnswers([]);
+    setSessionStep(0);
+    setSessionPhase("intro");
+    setShowFree(false);
+    setFreeInput("");
+    const qs = INTRO_QUESTIONS[themeId] || INTRO_QUESTIONS.free;
+    setCurrentQ(qs[0]);
+    setPage("phase2");
+  };
+
+  // 回答を受け取り次のステップへ
+  const handleAnswer = async (answer) => {
+    const newAnswers = [...sessionAnswers, { q: currentQ?.q, a: answer }];
+    setSessionAnswers(newAnswers);
+    setShowFree(false);
+    setFreeInput("");
+
+    const themeQs = INTRO_QUESTIONS[selectedTheme] || INTRO_QUESTIONS.free;
+    const nextIntroQ = themeQs[sessionStep + 1];
+
+    if (nextIntroQ && sessionStep < themeQs.length - 1) {
+      // まだ固定質問がある
+      setSessionStep(prev => prev + 1);
+      setCurrentQ(nextIntroQ);
+    } else {
+      // 固定質問が終わったらAI深掘りフェーズへ
+      setSessionPhase("deepdive");
+      setCurrentQ(null);
+      await fetchNextQuestion(newAnswers, "deepdive");
+    }
+    // 途中保存
+    persistSession({ themeId: selectedTheme, answers: newAnswers, phase: "in_progress" });
+  };
+
+  // わからないボタン
+  const handleDontKnow = async () => {
+    const themeQs = INTRO_QUESTIONS[selectedTheme] || INTRO_QUESTIONS.free;
+    const altId = currentQ?.alt;
+    const altQ = themeQs.find(q => q.id === altId);
+    if (altQ) {
+      setCurrentQ(altQ);
+    } else {
+      // 別角度でAIに質問を生成させる
+      await fetchNextQuestion(sessionAnswers, "skip");
+    }
+  };
+
+  // AIが次の深掘り質問を生成
+  const fetchNextQuestion = async (answers, phase) => {
+    setAiTyping(true);
+    try {
+      const answersText = answers.map(a => `Q: ${a.q}\nA: ${a.a}`).join("\n\n");
+      const deepdiveCount = answers.filter(a => a._deepdive).length;
+
+      const prompt = phase === "deepdive" && deepdiveCount >= 3
+        ? `以下はキャリアの自己理解セッションの回答です。十分な情報が集まりました。
+回答履歴：
+${answersText}
+
+次の形式のJSONのみで返答してください：
+{"done": true, "summary": "ここまでの回答から見えてきたことを2文で"}` 
+        : `以下はキャリアの自己理解セッションの回答です。
+テーマ：${THEMES.find(t=>t.id===selectedTheme)?.label||"自由"}
+回答履歴：
+${answersText}
+
+あなたはキャリアコンサルタントです。回答を深掘りするために、次の1問を考えてください。
+ルール：
+- 日本語の自然な話し言葉で
+- 30秒で答えられるシンプルな質問
+- 選択肢を3〜4個用意する（短く・具体的に）
+- 「なぜ」は使わない
+- 前の回答に関連させる
+
+次の形式のJSONのみで返答してください：
+{"done": false, "question": "質問文", "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"]}`;
+
+      const result = await callAIJSON([{ role: "user", content: prompt }]);
+
+      if (result.done) {
+        setSessionPhase("summary");
+        setCurrentQ({ q: result.summary, choices: [], isSummary: true });
+      } else {
+        setCurrentQ({ q: result.question, choices: result.choices || [], _deepdive: true });
+      }
+    } catch {
+      setCurrentQ({ q: "もう少し詳しく聞かせてもらえますか？", choices: ["続けて話す"], _deepdive: true });
+    }
+    setAiTyping(false);
+  };
+
+  // 深掘り回答
+  const handleDeepdiveAnswer = async (answer) => {
+    const newAnswers = [...sessionAnswers, { q: currentQ?.q, a: answer, _deepdive: true }];
+    setSessionAnswers(newAnswers);
+    setShowFree(false);
+    setFreeInput("");
+    persistSession({ themeId: selectedTheme, answers: newAnswers, phase: "in_progress" });
+    await fetchNextQuestion(newAnswers, "deepdive");
+  };
 
   const buildProfileSummary = () =>
     `名前: ${basic.name||"未入力"}、年齢: ${basic.age?basic.age+"歳":"未入力"}、業界: ${basic.industry||"未入力"}、ポジション: ${basic.position||"未入力"}、やりたいこと: ${basic.changeReason.join("、")||"未入力"}\n職歴: ${careers.filter(c=>c.company||c.role).map(c=>`${c.company}（${c.period}）${c.role}${c.achievements?" ／"+c.achievements:""}`).join(" / ")||"未入力"}\nスキル: ${Object.keys(skillMap).join("、")||"未入力"}`;
@@ -604,29 +746,29 @@ export default function App() {
   const generateReport = async () => {
     setReportLoading(true);
     try {
-      const conversation = messages.map(m=>`${m.role==="user"?"クライアント":"コンサルタント"}: ${m.content}`).join("\n");
+      const answersText = sessionAnswers.map(a => `Q: ${a.q}\nA: ${a.a}`).join("\n\n");
       const profileSummary = `職歴: ${careers.map(c=>`${c.company} ${c.role}`).join("、")}、スキル: ${Object.keys(skillMap).join("、")}`;
-      const prompt = `以下はキャリアコンサルティングの対話記録です。JSONのみで返答してください（説明文・マークダウン不要）。
+      const prompt = `以下はキャリアの自己理解セッションの回答記録です。JSONのみで返答してください（説明文・マークダウン不要）。
 
 プロフィール: ${profileSummary}
 テーマ: ${THEMES.find(t=>t.id===selectedTheme)?.label||"自由対話"}
 
-対話記録:
-${conversation}
+回答記録:
+${answersText}
 
 以下のJSON形式のみで返答:
-{"strengths":["強み1","強み2","強み3"],"softSkills":["対人関係力","コミュニケーション力","〜力など対話から見えたソフトスキル"],"values":["価値観1","価値観2","価値観3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextSteps":["次のアクション1","次のアクション2","次のアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）","insights":[{"label":"端的なキーワード（10文字以内）","text":"この気づきの背景・意味・なぜ重要かを具体的に説明（2〜3文）"}]}
+{"strengths":["強み1","強み2","強み3"],"softSkills":["ソフトスキル1","ソフトスキル2","ソフトスキル3"],"values":["価値観1","価値観2","価値観3"],"wants":["やりたいこと1","やりたいこと2","やりたいこと3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextActions":["まずは○○してみましょう","小さなアクション2","小さなアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）","insights":[{"label":"端的なキーワード（10文字以内）","text":"気づきの背景・なぜ重要かを2〜3文"}]}
 
 ルール：
-- strengths：対話の中で語られたエピソードから見えた「行動・思考・姿勢」の強み。3〜4個
-- softSkills：対話から見えた対人・思考・感情面のスキル（例：傾聴力、巻き込み力、粘り強さ）。3〜4個。ハードスキル（Excel等）は含めない
-- values：大切にしていること・譲れないこと。3〜4個
-- insightsのlabelは10文字以内の端的な表現。textは「なぜ重要か」「どんな場面で発揮されるか」を具体的に2〜3文で説明。「対話を通じて明確になりました」などの冗長な表現は使わない
-- insights：3〜5個`;
+- strengths：回答から見えた行動・思考・姿勢の強み。3〜4個
+- softSkills：対人・思考・感情面のスキル（例：傾聴力、巻き込み力）。3〜4個。Excel等のハードスキルは含めない
+- values：大切にしていること。3〜4個
+- wants：やりたいこと・向かいたい方向。2〜3個
+- nextActions：「まずは○○してみましょう」という具体的で小さな行動提案。3個
+- insights：3〜5個。labelは10文字以内`;
       const result = await callAIJSON([{ role:"user", content:prompt }]);
       setReport(result);
-      // セッションにinsightsを紐づけて保存
-      persistSession({ themeId: selectedTheme, messages, insights: result.insights||[] });
+      persistSession({ themeId: selectedTheme, answers: sessionAnswers, insights: result.insights||[], phase:"done" });
       persist({ report:result, phase2Done:true, selectedTheme });
       setPage("report");
     } catch(e) {
@@ -993,128 +1135,167 @@ ${conversation}
 
   // ── Theme Select ───────────────────────────────────────────
   if (page === "theme-select") return shell(
-    <div style={{ maxWidth:720, margin:"0 auto", padding:"40px 20px", animation:"fadeUp 0.4s ease" }}>
+    <div style={{ maxWidth:600, margin:"0 auto", padding:"40px 20px", animation:"fadeUp 0.4s ease" }}>
       <div style={{ textAlign:"center", marginBottom:36 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:C.teal, letterSpacing:"0.1em", marginBottom:8 }}>PHASE 2</div>
-        <h1 style={{ fontSize:24, fontWeight:800, marginBottom:10 }}>今日話したいテーマを選んでください</h1>
-        <p style={{ color:C.sub, fontSize:14, lineHeight:1.7 }}>選んだテーマに合わせて、AIコンサルタントが<br/>対話のスタイルを変えてお話しします。</p>
+        <div style={{ fontSize:11, fontWeight:700, color:C.teal, letterSpacing:"0.1em", marginBottom:8 }}>STEP 2</div>
+        <h1 style={{ fontSize:22, fontWeight:800, marginBottom:10 }}>今日はどんなことを話しますか？</h1>
+        <p style={{ color:C.sub, fontSize:14, lineHeight:1.8 }}>気になるテーマを選ぶと、AIが1問ずつ質問します。<br/>「わからない」でも大丈夫です。</p>
       </div>
-
-      {/* ハードスキルプレビュー */}
-      {Object.keys(skillMap).length > 0 && (
-        <Card style={{ marginBottom:28, padding:20 }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
-              <Wrench size={15} strokeWidth={1.8}/>
-              <span style={{ fontSize:13, fontWeight:700 }}>登録済みハードスキル</span>
-              <span style={{ fontSize:11, color:C.muted, fontFamily:FM }}>({Object.keys(skillMap).length}個)</span>
-            </div>
-            <button onClick={()=>{ setP1step(3); setPage("phase1"); }} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline", fontFamily:F }}>編集</button>
-          </div>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-            {SKILL_CATS.flatMap(cat=>
-              cat.skills.filter(s=>skillMap[s]).map(skill=>(
-                <div key={skill} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 11px", background:`${cat.color}0D`, border:`1px solid ${cat.color}33`, borderRadius:20 }}>
-                  <cat.Icon size={10} color={cat.color} strokeWidth={2}/>
-                  <span style={{ fontSize:12, color:C.text, fontWeight:500 }}>{skill}</span>
-                  <span style={{ fontSize:10, color:cat.color, fontFamily:FM, fontWeight:600 }}>{skillMap[skill]}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-      )}
-
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:32 }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:32 }}>
         {THEMES.map(theme=>(
-          <button key={theme.id} onClick={()=>{ setPage("phase2"); startConsulting(theme.id); }}
-            style={{ textAlign:"left", padding:"20px", background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:16, cursor:"pointer", fontFamily:F, transition:"all 0.2s", boxShadow:C.shadow }}>
-            <div style={{ marginBottom:10 }}><theme.Icon size={24} color={theme.color} strokeWidth={1.5}/></div>
-            <div style={{ fontWeight:700, fontSize:15, color:theme.color, marginBottom:6 }}>{theme.label}</div>
-            <div style={{ fontSize:12, color:C.sub, lineHeight:1.6 }}>{theme.desc}</div>
+          <button key={theme.id} onClick={()=>startGuidedSession(theme.id)}
+            style={{ textAlign:"left", padding:"18px 20px", background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:14, cursor:"pointer", fontFamily:F, transition:"all 0.15s", boxShadow:C.shadow, display:"flex", alignItems:"center", gap:16 }}>
+            <div style={{ width:40, height:40, borderRadius:10, background:`${theme.color}12`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <theme.Icon size={20} color={theme.color} strokeWidth={1.5}/>
+            </div>
+            <div>
+              <div style={{ fontWeight:700, fontSize:15, color:theme.color, marginBottom:3 }}>{theme.label}</div>
+              <div style={{ fontSize:12, color:C.sub, lineHeight:1.5 }}>{theme.desc}</div>
+            </div>
+            <ChevronRight size={16} color={C.muted} style={{ marginLeft:"auto", flexShrink:0 }}/>
           </button>
         ))}
       </div>
-      <button onClick={()=>setPage("phase1")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F, display:"flex", alignItems:"center", gap:4 }}>
-        <ChevronLeft size={14}/> スキルの棚卸しに戻る
+      <button onClick={()=>setPage(data?"dashboard":"phase1")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F, display:"flex", alignItems:"center", gap:4 }}>
+        <ChevronLeft size={14}/> 戻る
       </button>
     </div>
   );
 
-  // ── Phase 2: Chat ──────────────────────────────────────────
-  if (page === "phase2") return shell(
-    <div style={{ display:"flex", flexDirection:"column", height:"calc(100dvh - 58px)", overflow:"hidden" }}>
-      {/* チャットヘッダー */}
-      <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, zIndex:10 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <button onClick={()=>setPage(data?"dashboard":"home")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", padding:"4px", display:"flex", alignItems:"center" }}>
-            <ChevronLeft size={20} strokeWidth={1.8}/>
-          </button>
-          {selectedTheme && (()=>{ const t=THEMES.find(x=>x.id===selectedTheme); return t?<><t.Icon size={15} color={t.color} strokeWidth={1.8}/><div><div style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</div><div style={{ fontSize:11, color:C.muted }}>AIキャリアコンサルティング</div></div></>:null; })()}
-        </div>
-        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-          <button onClick={()=>setPage("theme-select")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 10px", color:C.muted, cursor:"pointer", fontSize:12, fontFamily:F }}>テーマ変更</button>
-          {sessionDone && (
-            <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"6px 12px", fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
-              <FileText size={13}/> {reportLoading?"生成中...":"レポート作成"}
-            </Btn>
-          )}
-        </div>
-      </div>
+  // ── Phase 2: ガイド対話 ────────────────────────────────────
+  if (page === "phase2") {
+    const theme = THEMES.find(t=>t.id===selectedTheme);
+    const totalAnswers = sessionAnswers.length;
+    const isSummaryPhase = sessionPhase === "summary";
+    const isDeepdive = sessionPhase === "deepdive";
+    const progressPct = Math.min(100, totalAnswers * 15);
 
-      {/* チャットエリア（スクロール可能） */}
-      <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"20px 16px", display:"flex", flexDirection:"column", gap:14 }}>
-        {messages.length === 0 && (
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:C.muted, fontSize:14 }}>
-            <div style={{ width:18, height:18, border:`2px solid ${C.border}`, borderTopColor:C.teal, borderRadius:"50%", animation:"spin .8s linear infinite", marginRight:8 }}/>
-            準備中です...
-          </div>
-        )}
-        {messages.map((msg,i)=>(
-          <div key={i} style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:8, alignItems:"flex-end" }}>
-            {msg.role === "assistant" && <div style={{ flexShrink:0 }}><ConsultantAvatar size={32}/></div>}
-            <div style={{ maxWidth:"80%", padding:"12px 14px", borderRadius:msg.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px", background:msg.role==="user"?C.accent:C.surface, color:msg.role==="user"?"#fff":C.text, fontSize:14, lineHeight:1.85, boxShadow:C.shadow, border:msg.role==="user"?"none":`1px solid ${C.border}`, whiteSpace:"pre-wrap" }}>
-              {msg.role==="assistant" ? <BoldText text={msg.content}/> : msg.content}
-              {msg.role==="assistant" && aiTyping && i===messages.length-1 && msg.content && (
-                <span style={{ display:"inline-block", width:2, height:14, background:C.teal, marginLeft:2, animation:"blink 0.8s infinite", verticalAlign:"middle" }}/>
+    return shell(
+      <div style={{ display:"flex", flexDirection:"column", height:"calc(100dvh - 58px)", overflow:"hidden" }}>
+        {/* ヘッダー */}
+        <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"12px 16px", flexShrink:0 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <button onClick={()=>setPage(data?"dashboard":"home")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", padding:"4px", display:"flex", alignItems:"center" }}>
+                <ChevronLeft size={20} strokeWidth={1.8}/>
+              </button>
+              {theme && <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <theme.Icon size={14} color={theme.color} strokeWidth={1.8}/>
+                <span style={{ fontSize:13, fontWeight:700, color:theme.color }}>{theme.label}</span>
+              </div>}
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              <button onClick={()=>setPage("theme-select")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"4px 10px", color:C.muted, cursor:"pointer", fontSize:12, fontFamily:F }}>テーマ変更</button>
+              {totalAnswers >= 4 && (
+                <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"5px 12px", fontSize:12, display:"flex", alignItems:"center", gap:4 }}>
+                  <FileText size={12}/> {reportLoading?"生成中...":"まとめる"}
+                </Btn>
               )}
             </div>
           </div>
-        ))}
-        {aiTyping && messages[messages.length-1]?.content==="" && (
-          <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-            <div style={{ flexShrink:0 }}><ConsultantAvatar size={32}/></div>
-            <div style={{ padding:"12px 16px", borderRadius:"16px 16px 16px 4px", background:C.surface, border:`1px solid ${C.border}`, boxShadow:C.shadow, display:"flex", gap:4, alignItems:"center" }}>
-              {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
-            </div>
+          {/* プログレスバー */}
+          <div style={{ background:C.border, borderRadius:99, height:3 }}>
+            <div style={{ width:`${progressPct}%`, height:"100%", background:C.teal, borderRadius:99, transition:"width 0.5s ease" }}/>
           </div>
-        )}
-        <div ref={chatEndRef}/>
-      </div>
+          <div style={{ fontSize:10, color:C.muted, marginTop:4 }}>{totalAnswers}問回答済み{totalAnswers >= 4 ? " ・ いつでもまとめられます" : ""}</div>
+        </div>
 
-      {/* 入力エリア */}
-      <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"12px 16px", flexShrink:0 }}>
-        {sessionDone && (
-          <div style={{ marginBottom:10, padding:"8px 14px", background:C.tealL, border:`1px solid ${C.teal}44`, borderRadius:10, fontSize:12, color:C.teal, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
-            <span>対話の内容が十分になりました</span>
-            <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"5px 12px", fontSize:12, display:"flex", alignItems:"center", gap:5 }}>
-              <FileText size={12}/> {reportLoading?"生成中...":"レポートを作成"}
-            </Btn>
+        {/* メインエリア */}
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"24px 16px 16px" }}>
+          <div style={{ maxWidth:560, margin:"0 auto" }}>
+
+            {/* 回答済み履歴（折りたたみ） */}
+            {sessionAnswers.length > 0 && (
+              <div style={{ marginBottom:24 }}>
+                {sessionAnswers.map((ans, i)=>(
+                  <div key={i} style={{ marginBottom:12 }}>
+                    <div style={{ fontSize:12, color:C.muted, marginBottom:4 }}>{ans.q}</div>
+                    <div style={{ fontSize:14, color:C.sub, background:C.bg, padding:"10px 14px", borderRadius:10, border:`1px solid ${C.border}` }}>{ans.a}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 現在の質問カード */}
+            {aiTyping ? (
+              <div style={{ display:"flex", alignItems:"center", gap:10, padding:"20px", background:C.surface, borderRadius:16, border:`1px solid ${C.border}`, boxShadow:C.shadow }}>
+                <ConsultantAvatar size={32}/>
+                <div style={{ display:"flex", gap:4 }}>
+                  {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
+                </div>
+              </div>
+            ) : currentQ && !isSummaryPhase && (
+              <div style={{ background:C.surface, borderRadius:16, border:`1px solid ${C.border}`, padding:"20px", boxShadow:C.shadow, animation:"fadeUp 0.3s ease" }}>
+                <div style={{ display:"flex", gap:12, marginBottom:20 }}>
+                  <div style={{ flexShrink:0 }}><ConsultantAvatar size={32}/></div>
+                  <p style={{ fontSize:16, fontWeight:600, color:C.text, lineHeight:1.7, margin:0 }}>{currentQ.q}</p>
+                </div>
+
+                {/* 選択肢 */}
+                {(currentQ.choices||[]).length > 0 && !showFree && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+                    {currentQ.choices.map((choice, i)=>(
+                      <button key={i} onClick={()=> isDeepdive ? handleDeepdiveAnswer(choice) : handleAnswer(choice)}
+                        style={{ textAlign:"left", padding:"12px 16px", background:C.bg, border:`1.5px solid ${C.border}`, borderRadius:12, cursor:"pointer", fontSize:14, color:C.text, fontFamily:F, transition:"all 0.15s" }}>
+                        {choice}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 自由記述 */}
+                {showFree ? (
+                  <div>
+                    <textarea value={freeInput} onChange={e=>setFreeInput(e.target.value)}
+                      placeholder="自由に書いてみてください..."
+                      style={{...IS, minHeight:80, resize:"none", borderRadius:10, padding:"10px 14px", marginBottom:10, fontSize:14, lineHeight:1.7 }}
+                      autoFocus/>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <Btn onClick={()=> freeInput.trim() && (isDeepdive ? handleDeepdiveAnswer(freeInput) : handleAnswer(freeInput))} disabled={!freeInput.trim()} style={{ flex:1 }}>送る</Btn>
+                      <Btn variant="secondary" onClick={()=>setShowFree(false)} style={{ flex:1 }}>戻る</Btn>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    <button onClick={()=>setShowFree(true)}
+                      style={{ padding:"9px 16px", borderRadius:10, border:`1px solid ${C.accent}`, background:C.accentL, color:C.accent, cursor:"pointer", fontSize:13, fontFamily:F, fontWeight:600 }}>
+                      自由に書く
+                    </button>
+                    <button onClick={handleDontKnow}
+                      style={{ padding:"9px 16px", borderRadius:10, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F }}>
+                      わからない
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* サマリーフェーズ */}
+            {isSummaryPhase && currentQ && (
+              <div style={{ background:C.tealL, borderRadius:16, border:`1px solid ${C.teal}33`, padding:"24px", animation:"fadeUp 0.3s ease" }}>
+                <div style={{ display:"flex", gap:12, marginBottom:20 }}>
+                  <ConsultantAvatar size={32}/>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:700, color:C.teal, marginBottom:6 }}>ここまでの内容から</div>
+                    <p style={{ fontSize:14, color:C.sub, lineHeight:1.8 }}>{currentQ.q}</p>
+                  </div>
+                </div>
+                <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, fontSize:15, padding:"14px" }}>
+                  <FileText size={16}/> {reportLoading ? "生成中..." : "結果をまとめる"}
+                </Btn>
+                <button onClick={()=> fetchNextQuestion(sessionAnswers, "deepdive")}
+                  style={{ width:"100%", marginTop:10, padding:"10px", background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F }}>
+                  もう少し話す
+                </button>
+              </div>
+            )}
+
+            <div ref={chatEndRef}/>
           </div>
-        )}
-        <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-          <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
-            onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendMessage(); } }}
-            placeholder="メッセージを入力...（Ctrl+Enterで送信）" disabled={aiTyping}
-            style={{...IS, flex:1, minHeight:44, maxHeight:100, lineHeight:1.6, resize:"none", borderRadius:12, padding:"10px 14px", fontSize:14 }}/>
-          <button onClick={sendMessage} disabled={aiTyping||!input.trim()}
-            style={{ width:44, height:44, borderRadius:12, background:input.trim()&&!aiTyping?C.teal:C.border, border:"none", color:"#fff", fontSize:18, cursor:input.trim()&&!aiTyping?"pointer":"not-allowed", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
-            ↑
-          </button>
         </div>
       </div>
-    </div>
-  , true);
+    , true);
+  }
 
   // ── Report ─────────────────────────────────────────────────
   if (page === "report") {
@@ -1159,6 +1340,23 @@ ${conversation}
           ))}
         </div>
 
+        {/* やりたいこと */}
+        {(r.wants||[]).length > 0 && (
+          <Card style={{ marginBottom:20, background:C.accentL, border:`1px solid ${C.accent}33` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:C.accent }}>
+              <Map size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>やりたいこと・向かいたい方向</span>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {(r.wants||[]).map((item,i)=>(
+                <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px", background:"rgba(255,255,255,0.6)", borderRadius:8 }}>
+                  <span style={{ color:C.accent, flexShrink:0, fontWeight:700 }}>→</span>
+                  <span style={{ fontSize:13, color:C.text }}>{item}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         <Card style={{ marginBottom:20, background:C.goldL, border:`1px solid ${C.gold}33` }}>
           <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10, color:C.gold }}>
             <PenLine size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>自己PR文のベース</span>
@@ -1169,11 +1367,11 @@ ${conversation}
 
         <Card style={{ marginBottom:32 }}>
           <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:C.green }}>
-            <ArrowRight size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>次のアクション</span>
+            <ArrowRight size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>まず、これをやってみましょう</span>
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-            {(r.nextSteps||[]).map((step,i)=>(
-              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"10px 14px", background:C.greenL, borderRadius:10 }}>
+            {(r.nextActions||r.nextSteps||[]).map((step,i)=>(
+              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"12px 16px", background:C.greenL, borderRadius:10 }}>
                 <div style={{ width:22, height:22, borderRadius:"50%", background:C.green, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, flexShrink:0 }}>{i+1}</div>
                 <span style={{ fontSize:14, color:C.sub, lineHeight:1.6 }}>{step}</span>
               </div>
@@ -1634,4 +1832,3 @@ ${conversation}
 
   return null;
 }
-
