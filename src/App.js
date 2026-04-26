@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Zap, Brain, PenLine, ArrowRight, ArrowLeft, ChevronRight, Save, MessageCircle, FileText, BookOpen, Send } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import logoPathnote from './logo-pathnote.png';
+import { Zap, Brain, PenLine, ArrowRight, ArrowLeft, ChevronRight, Save, MessageCircle, FileText, BookOpen, Send, Star, Heart, Compass, Sparkles, Map } from "lucide-react";
 
 // ── Design tokens ─────────────────────────────────────────────
 const C = {
@@ -244,7 +245,29 @@ ${answersText}
   };
 
   // ── Phase2 ロジック ────────────────────────────────────────
-  const startPhase2 = async () => {
+  const P2_SYSTEM = (context, themeLabel) => `あなたは経験豊富なキャリアコンサルタントです。
+
+【絶対に守ること】
+・すべて敬語で話す（タメ口・くだけた表現は絶対NG）
+・質問は必ず「？」で終わる
+・1回の返答は2〜3文まで。短くシンプルに
+・質問は一つだけ
+・カタカナの専門用語を使わない（モチベーション・ダイナミクス・スキルセット等すべてNG）
+・「なぜ」は使わない。「どんな場面で」「どう感じましたか」を使う
+・アドバイス・評価・判断はしない。ひたすら聞く
+・相手が使った言葉をそのまま使って返す
+
+【会話の質の判定基準】
+以下の3つが深堀りできたと判断したら、まとめに入る：
+1. 具体的なエピソード（どんな場面か）が出ている
+2. そのときの気持ち・感情が語られている
+3. 大切にしていること・価値観に触れている
+→ 3つ揃う前は続ける。揃ったらまとめに入る
+
+${context ? `【STEP1の結果（参考）】\n${context}` : ""}
+${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
+
+  const startPhase2 = async (themeId) => {
     setP2messages([]);
     setP2turn(0);
     setP2done(false);
@@ -253,38 +276,24 @@ ${answersText}
     setP2typing(true);
 
     const r = result || savedResult?.result;
-    const context = r ? `フェーズ①の結果：強み「${(r.strengths||[]).join("・")}」、価値観「${(r.values||[]).join("・")}」、向かいたい方向「${(r.wants||[]).join("・")}」` : "";
+    const context = r
+      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")} ／ 向かいたい方向：${(r.wants||[]).join("・")}`
+      : "";
+    const themeId2 = themeId || "free";
+    const themeLabel = THEMES_P2_LABELS[themeId2] || "";
 
-    const sys = `あなたはキャリアコンサルタントです。クライアントと話しています。
+    // テーマ別の最初の質問（シンプルで自然なもの）
+    const openingByTheme = {
+      moyo:    r ? `STEP1で「${(r.values||[])[0]||""}」を大切にしていると出ていました。最近、仕事でモヤモヤを感じるのはどんな場面ですか？` : "最近、仕事でモヤモヤを感じるのはどんな場面ですか？",
+      tsuyomi: r ? `STEP1で「${(r.strengths||[])[0]||""}」という強みが出ていました。周りから「助かった」「ありがとう」と言われるのは、どんなときが多いですか？` : "周りから「助かった」「ありがとう」と言われるのは、どんなときが多いですか？",
+      taisetu: r ? `STEP1で「${(r.values||[])[0]||""}」を大切にしていると出ていました。仕事をしていて「これだけは妥協したくない」と思うことはありますか？` : "仕事をしていて「これだけは妥協したくない」と思うことはありますか？",
+      tensyoku:r ? `STEP1の結果を拝見しました。転職を考えるようになったのは、どんなきっかけがありましたか？` : "転職を考えるようになったのは、どんなきっかけがありましたか？",
+      career:  r ? `STEP1で「${(r.wants||[])[0]||""}」という方向性が出ていました。5年後、どんな状態でいたいかイメージはありますか？` : "5年後、どんな状態でいたいかイメージはありますか？",
+      free:    r ? `STEP1で「${(r.strengths||[])[0]||""}」という強みが出ていました。今日は何について話してみたいですか？` : "今日は何について話してみたいですか？",
+    };
+    const opening = openingByTheme[themeId2] || openingByTheme.free;
 
-【話し方のルール】
-・質問は短く・シンプルに。一文で終わらせる
-・「〜ということでしょうか」「〜はどのように影響しますか」のような回りくどい言い方はしない
-・カタカナの専門用語（ダイナミクス、モチベーション、スキルセット等）は使わない
-・「なぜ」は使わない。「どんな場面で」「どう感じましたか」を使う
-・アドバイスはしない。聞くことに徹する
-・相手の言葉をそのまま使って受け取る（例：「〇〇だったんですね。」）
-・必ず疑問文で終わる
-・1回の返答は2〜3文まで
-
-【良い質問の例】
-・「日々の仕事で一番手応えを感じる場面はどんなときですか？」
-・「そのとき、どんな気持ちでしたか？」
-・「周りから「ありがとう」と言われるのはどんな場面が多いですか？」
-・「それをやっているとき、何が楽しいと感じますか？」
-
-${context}
-4〜6往復で自然にまとめに入る。`;
-
-    try {
-      const firstMsg = await callAIStream_p2(
-        [{ role:"system", content:sys }, { role:"user", content:"お願いします。" }],
-        (partial) => setP2messages([{ role:"assistant", content:partial }])
-      );
-      setP2messages([{ role:"assistant", content:firstMsg }]);
-    } catch {
-      setP2messages([{ role:"assistant", content:"申し訳ありません。もう一度試してください。" }]);
-    }
+    setP2messages([{ role:"assistant", content:opening }]);
     setP2typing(false);
   };
 
@@ -299,14 +308,19 @@ ${context}
     setP2turn(newTurn);
 
     const r = result || savedResult?.result;
-    const context = r ? `フェーズ①の結果：強み「${(r.strengths||[]).join("・")}」、価値観「${(r.values||[]).join("・")}」` : "";
-    const endHint = newTurn >= 5
-      ? "\n\n【重要】そろそろ対話をまとめてください。これまでの会話で見えてきたことを1〜2文でフィードバックし、「ここまでの対話をもとに整理できます」と自然に伝えてください。"
+    const context = r
+      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")}`
       : "";
 
-    const sys = `あなたはキャリアコンサルタントです。
-${context}
-【ルール】質問は短く・一文・疑問文で終わる・カタカナ専門用語使わない（ダイナミクス・モチベーション等NG）・アドバイスしない・相手の言葉をそのまま使う・2〜3文まで${endHint}`;
+    // 深掘り十分かどうかをAIに判定させる
+    const depthCheck = newTurn >= 4
+      ? `\n\n【重要な判定】これまでの会話を読んで、以下の3つが揃っているか判断してください：
+①具体的なエピソードが出ている ②そのときの気持ちが語られている ③価値観・大切にしていることに触れている
+→ 3つ揃っていたら：会話の内容を1〜2文でフィードバックし「ここまでの内容を整理することができます。どうなさいますか？」と聞いてください。
+→ 揃っていなければ：引き続き深掘りの質問を続けてください。`
+      : "";
+
+    const sys = `${P2_SYSTEM(context, "")}${depthCheck}`;
 
     try {
       let finalContent = "";
@@ -317,9 +331,12 @@ ${context}
           setP2messages([...newMsgs, { role:"assistant", content:partial }]);
         }
       );
-      if (newTurn >= 5) setP2done(true);
+      // 「整理することができます」が含まれたらまとめ提案フラグ
+      if (finalContent.includes("整理する") || finalContent.includes("まとめ") || newTurn >= 8) {
+        setP2done(true);
+      }
     } catch {
-      setP2messages([...newMsgs, { role:"assistant", content:"エラーが発生しました。もう一度送信してください。" }]);
+      setP2messages([...newMsgs, { role:"assistant", content:"申し訳ありません。もう一度送信してください。" }]);
     }
     setP2typing(false);
   };
@@ -413,11 +430,7 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
   const Nav = ({ showResult }) => (
     <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow }}>
       <div onClick={()=>setPage("home")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:26, height:26, background:C.accent, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M2 11L5 4L7 9L9 6L12 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
+        <img src={logoPathnote} alt="PathNote" style={{ width:28, height:28, objectFit:"contain" }}/>
         <span style={{ fontWeight:800, fontSize:15, color:C.text, letterSpacing:"-0.02em" }}>PathNote</span>
       </div>
       <div style={{ display:"flex", gap:8 }}>
@@ -425,12 +438,6 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
           <button onClick={()=>setPage("mypage")}
             style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 12px", color:C.sub, cursor:"pointer", fontSize:12 }}>
             マイページ
-          </button>
-        )}
-        {showResult && savedResult?.result && (
-          <button onClick={()=>{ setResult(savedResult.result); setPage("result"); }}
-            style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 12px", color:C.sub, cursor:"pointer", fontSize:12 }}>
-            結果を見る
           </button>
         )}
       </div>
@@ -644,7 +651,7 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
                 style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
                 もう一度やってみる
               </button>
-              <button onClick={startPhase2}
+              <button onClick={()=>startPhase2("free")}
                 style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.accent}`, borderRadius:12, fontSize:14, fontWeight:600, color:C.accent, cursor:"pointer" }}>
                 AIと対話してもっと深掘りする <ChevronRight size={15} style={{ display:"inline", verticalAlign:"middle" }}/>
               </button>
@@ -678,19 +685,18 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
   // PHASE 2 CHAT
   // ══════════════════════════════════════════════════════════
   if (page === "p2_chat") {
-    const chatEndRef = { current: null };
     return (
-      <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column" }}>
+      <div style={{ height:"100dvh", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <GlobalStyles/>
         {/* ヘッダー */}
-        <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow, flexShrink:0 }}>
+        <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 16px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <button onClick={()=>setPage("mypage")} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4, display:"flex", alignItems:"center" }}>
               <ArrowLeft size={20}/>
             </button>
             <div>
               <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>STEP 2 · 深掘り対話</div>
-              <div style={{ fontSize:11, color:C.muted }}>{p2turn}/6 往復</div>
+              <div style={{ fontSize:11, color:C.muted }}>{p2turn}問回答済み</div>
             </div>
           </div>
           {p2done && (
@@ -702,23 +708,23 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
         </nav>
 
         {/* プログレス */}
-        <div style={{ background:C.border, height:3 }}>
-          <div style={{ width:`${Math.min(100, (p2turn/6)*100)}%`, height:"100%", background:`linear-gradient(90deg,${C.accent},${C.accentM})`, transition:"width 0.5s ease" }}/>
+        <div style={{ background:C.border, height:3, flexShrink:0 }}>
+          <div style={{ width:`${Math.min(100,(p2turn/7)*100)}%`, height:"100%", background:`linear-gradient(90deg,${C.accent},${C.accentM})`, transition:"width 0.5s ease" }}/>
         </div>
 
         {/* チャットエリア */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"20px 16px 12px" }}>
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"16px 16px 8px" }}>
           <div style={{ maxWidth:520, margin:"0 auto", display:"flex", flexDirection:"column", gap:14 }}>
 
-            {/* フェーズ①結果の要約 */}
+            {/* STEP1結果の要約 */}
             {(result || savedResult?.result) && (() => {
               const r = result || savedResult?.result;
               return (
-                <div style={{ padding:"14px 16px", background:C.accentL, borderRadius:12, border:`1px solid ${C.accentM}33`, marginBottom:4 }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:C.accent, marginBottom:8, letterSpacing:"0.06em" }}>STEP 1 の結果</div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                <div style={{ padding:"12px 14px", background:C.accentL, borderRadius:12, border:`1px solid ${C.accentM}33` }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:C.accent, marginBottom:6, letterSpacing:"0.06em" }}>STEP 1 の結果</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
                     {[...(r.strengths||[]).slice(0,2), ...(r.values||[]).slice(0,1)].map((item,i)=>(
-                      <span key={i} style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:C.surface, border:`1px solid ${C.border}`, color:C.sub }}>{item}</span>
+                      <span key={i} style={{ fontSize:12, padding:"2px 9px", borderRadius:16, background:C.surface, border:`1px solid ${C.border}`, color:C.sub }}>{item}</span>
                     ))}
                   </div>
                 </div>
@@ -742,15 +748,7 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
                     <path d="M14.5 22 L13 25.5 L16 24 L19 25.5 L17.5 22" fill="#FDFCFA"/>
                   </svg>
                 )}
-                <div style={{
-                  maxWidth:"80%", padding:"12px 14px",
-                  borderRadius: msg.role==="user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                  background: msg.role==="user" ? C.accent : C.surface,
-                  color: msg.role==="user" ? "#fff" : C.text,
-                  fontSize:14, lineHeight:1.8, boxShadow:C.shadow,
-                  border: msg.role==="user" ? "none" : `1px solid ${C.border}`,
-                  whiteSpace:"pre-wrap",
-                }}>
+                <div style={{ maxWidth:"80%", padding:"11px 14px", borderRadius:msg.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px", background:msg.role==="user"?C.accent:C.surface, color:msg.role==="user"?"#fff":C.text, fontSize:14, lineHeight:1.85, boxShadow:C.shadow, border:msg.role==="user"?"none":`1px solid ${C.border}`, whiteSpace:"pre-wrap" }}>
                   {msg.content}
                   {msg.role==="assistant" && p2typing && i===p2messages.length-1 && msg.content && (
                     <span style={{ display:"inline-block", width:2, height:13, background:C.accent, marginLeft:2, animation:"blink 0.8s infinite", verticalAlign:"middle" }}/>
@@ -774,40 +772,47 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
                   <path d="M7 32 Q7 24 16 22 Q25 24 25 32" fill={C.accent}/>
                   <path d="M14.5 22 L13 25.5 L16 24 L19 25.5 L17.5 22" fill="#FDFCFA"/>
                 </svg>
-                <div style={{ padding:"12px 16px", borderRadius:"14px 14px 14px 4px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", gap:4, alignItems:"center" }}>
+                <div style={{ padding:"11px 16px", borderRadius:"14px 14px 14px 4px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", gap:4, alignItems:"center" }}>
                   {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
                 </div>
               </div>
             )}
 
-            {p2done && (
-              <div style={{ background:`linear-gradient(135deg,${C.accentL},#F0F8F4)`, border:`1px solid ${C.accentM}44`, borderRadius:14, padding:"18px 20px", textAlign:"center" }}>
-                <div style={{ fontSize:14, fontWeight:600, color:C.accent, marginBottom:10 }}>対話が十分になりました</div>
-                <button onClick={generateP2Result}
-                  style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
-                  結果をまとめる <ChevronRight size={15} style={{ display:"inline", verticalAlign:"middle" }}/>
-                </button>
+            {/* まとめ選択UI */}
+            {p2done && !p2typing && (
+              <div style={{ background:`linear-gradient(135deg,${C.accentL},#F0F8F4)`, border:`1px solid ${C.accentM}44`, borderRadius:14, padding:"16px 18px" }}>
+                <div style={{ fontSize:13, fontWeight:600, color:C.accent, marginBottom:12 }}>どうしますか？</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  <button onClick={generateP2Result}
+                    style={{ width:"100%", padding:"12px", background:C.accent, color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                    結果をまとめる
+                  </button>
+                  <button onClick={()=>{ setP2done(false); }}
+                    style={{ width:"100%", padding:"12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:10, fontSize:13, color:C.sub, cursor:"pointer" }}>
+                    もう少し話を続ける
+                  </button>
+                </div>
               </div>
             )}
+
+            <div ref={el=>el&&el.scrollIntoView({behavior:"smooth",block:"end"})}/>
           </div>
         </div>
 
-        {/* 入力エリア */}
-        {!p2done && (
-          <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"12px 16px", flexShrink:0 }}>
-            <div style={{ maxWidth:520, margin:"0 auto", display:"flex", gap:8, alignItems:"flex-end" }}>
-              <textarea value={p2input} onChange={e=>setP2input(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendP2Message(); } }}
-                placeholder="思っていることを自由に...（Ctrl+Enterで送信）"
-                disabled={p2typing}
-                style={{ flex:1, padding:"10px 14px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, fontSize:14, lineHeight:1.6, resize:"none", minHeight:44, maxHeight:100, color:C.text, outline:"none", fontFamily:F }}/>
-              <button onClick={sendP2Message} disabled={p2typing||!p2input.trim()}
-                style={{ width:44, height:44, borderRadius:12, background:p2input.trim()&&!p2typing?C.accent:C.border, border:"none", color:"#fff", cursor:p2input.trim()&&!p2typing?"pointer":"not-allowed", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.15s" }}>
-                <Send size={18}/>
-              </button>
-            </div>
+        {/* 入力エリア（常に表示） */}
+        <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"10px 16px", flexShrink:0 }}>
+          <div style={{ maxWidth:520, margin:"0 auto", display:"flex", gap:8, alignItems:"flex-end" }}>
+            <textarea value={p2input} onChange={e=>setP2input(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendP2Message(); } }}
+              placeholder={p2done ? "続けて話す場合はここに入力..." : "思っていることを自由に...（Ctrl+Enterで送信）"}
+              disabled={p2typing}
+              style={{ flex:1, padding:"10px 14px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, fontSize:14, lineHeight:1.6, resize:"none", minHeight:44, maxHeight:96, color:C.text, outline:"none", fontFamily:F }}/>
+            <button onClick={()=>{ if(p2done) setP2done(false); sendP2Message(); }} disabled={p2typing||!p2input.trim()}
+              style={{ width:44, height:44, borderRadius:12, background:p2input.trim()&&!p2typing?C.accent:C.border, border:"none", color:"#fff", cursor:p2input.trim()&&!p2typing?"pointer":"not-allowed", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.15s" }}>
+              <Send size={18}/>
+            </button>
           </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -860,18 +865,21 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
 
           {/* キャリアの軸 */}
           <div style={{ background:`linear-gradient(135deg,${C.accentL},#F0F8F4)`, border:`1px solid ${C.accentM}44`, borderRadius:16, padding:"20px 22px", marginBottom:14 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:C.accent, marginBottom:10, letterSpacing:"0.06em" }}>キャリアの軸</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, color:C.accent }}>
+              <Compass size={18} strokeWidth={1.8}/>
+              <span style={{ fontSize:14, fontWeight:700 }}>キャリアの軸</span>
+            </div>
             <p style={{ fontSize:15, color:C.text, lineHeight:1.9, fontWeight:600 }}>{r2.axis}</p>
           </div>
 
           <SectionCard title="強み" color={C.accent} items={r2.strengths}
-            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1L9.5 5.5L14.5 6L11 9.5L12 14.5L7.5 12L3 14.5L4 9.5L0.5 6L5.5 5.5L7.5 1Z" fill={C.accent}/></svg>}
+            icon={<Star size={15} fill={C.accent} strokeWidth={0}/>}
           />
           <SectionCard title="大切にしていること" color={C.warm} items={r2.values}
-            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 13S2 9 2 5.5C2 3.5 3.5 2 5.5 2C6.5 2 7.5 2.8 7.5 2.8S8.5 2 9.5 2C11.5 2 13 3.5 13 5.5C13 9 7.5 13 7.5 13Z" fill={C.warm}/></svg>}
+            icon={<Heart size={15} fill={C.warm} strokeWidth={0}/>}
           />
           <SectionCard title="向かいたい方向" color="#7B5EA7" items={r2.wants}
-            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5H13M9 3.5L13 7.5L9 11.5" stroke="#7B5EA7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            icon={<Map size={15} color="#7B5EA7" strokeWidth={1.8}/>}
           />
 
           {/* 自己PR */}
@@ -946,29 +954,8 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
     onRestart={restart}
     onNewSession={(themeId)=>{
       if (themeId) {
-        // テーマ選択済み → フェーズ②へ直接
         setP2messages([]); setP2turn(0); setP2done(false); setP2result(null);
-        setPage("p2_chat");
-        // startPhase2相当の処理をthemeIdで実行
-        (async () => {
-          setP2typing(true);
-          const r = load()?.latestP2 || load()?.result;
-          const context = r ? `これまでの結果：強み「${(r.strengths||[]).join("・")}」、価値観「${(r.values||[]).join("・")}」` : "";
-          const themeLabel = THEMES_P2_LABELS[themeId] || "自由";
-          const sys = `あなたはキャリアの自己理解を助けるコーチです。
-テーマ：「${themeLabel}」について話を聞きます。
-${context}
-ルール：1回に質問1つ・話し言葉・2〜3文・ミラーリング・アドバイスなし・必ず疑問文で終わる
-最初の一言：テーマに沿って、温かく自然な入り口の質問を1つだけしてください。`;
-          try {
-            const firstMsg = await callAIStream_p2(
-              [{ role:"system", content:sys }, { role:"user", content:"お願いします。" }],
-              (partial) => setP2messages([{ role:"assistant", content:partial }])
-            );
-            setP2messages([{ role:"assistant", content:firstMsg }]);
-          } catch { setP2messages([{ role:"assistant", content:"申し訳ありません。もう一度お試しください。" }]); }
-          setP2typing(false);
-        })();
+        startPhase2(themeId);
       } else {
         setStep(0); setAnswers([]); setPage("quiz");
       }
@@ -1174,13 +1161,11 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession }) {
                 )}
 
                 {/* 強み */}
-                <NoteSectionCard title="強み" color={C.accent} items={latest.strengths}/>
-
+                <NoteSectionCard title="強み" color={C.accent} items={latest.strengths} Icon={Star}/>
                 {/* 価値観 */}
-                <NoteSectionCard title="大切にしていること" color={C.warm} items={latest.values}/>
-
+                <NoteSectionCard title="大切にしていること" color={C.warm} items={latest.values} Icon={Heart}/>
                 {/* 向かいたい方向 */}
-                <NoteSectionCard title="向かいたい方向" color="#7B5EA7" items={latest.wants}/>
+                <NoteSectionCard title="向かいたい方向" color="#7B5EA7" items={latest.wants} Icon={Map}/>
 
                 {/* キャリアの方向性 */}
                 {(latest.careerDirection||[latest.action]).filter(Boolean).length > 0 && (
@@ -1526,16 +1511,19 @@ function SessionDetail({ messages, result: r2, onBack, GlobalStyles }) {
 }
 
 // ── NoteSectionCard ───────────────────────────────────────────
-function NoteSectionCard({ title, color, items }) {
+function NoteSectionCard({ title, color, items, Icon }) {
   if (!items || items.length === 0) return null;
   return (
     <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"18px 20px", boxShadow:C.shadow }}>
-      <div style={{ fontSize:11, fontWeight:700, color, marginBottom:12, letterSpacing:"0.06em" }}>{title}</div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color }}>
+        {Icon && <Icon size={17} strokeWidth={1.8}/>}
+        <span style={{ fontSize:15, fontWeight:700 }}>{title}</span>
+      </div>
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {items.map((item,i)=>(
-          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px", background:`${color}08`, borderRadius:8 }}>
-            <span style={{ color, fontWeight:700, fontSize:12, flexShrink:0, marginTop:1 }}>▸</span>
-            <span style={{ fontSize:14, color:C.text, lineHeight:1.7, wordBreak:"keep-all" }}>{item}</span>
+          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"10px 14px", background:`${color}08`, borderRadius:8 }}>
+            <span style={{ color, fontWeight:700, fontSize:13, flexShrink:0, marginTop:1 }}>▸</span>
+            <span style={{ fontSize:15, color:C.text, lineHeight:1.7, wordBreak:"keep-all" }}>{item}</span>
           </div>
         ))}
       </div>
@@ -1549,16 +1537,16 @@ function SectionCard({ title, color, items, icon }) {
   return (
     <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"20px 22px", marginBottom:14, boxShadow:`0 1px 6px rgba(0,0,0,0.06)` }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
-        <div style={{ width:24, height:24, borderRadius:6, background:`${color}15`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+        <div style={{ width:28, height:28, borderRadius:7, background:`${color}15`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
           {icon}
         </div>
-        <span style={{ fontSize:13, fontWeight:700, color }}>{title}</span>
+        <span style={{ fontSize:15, fontWeight:700, color }}>{title}</span>
       </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {items.map((item, i) => (
           <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 14px", background:`${color}07`, borderRadius:10 }}>
-            <span style={{ color, fontWeight:700, fontSize:13, flexShrink:0, marginTop:1 }}>▸</span>
-            <span style={{ fontSize:14, color:"#1C1C1C", lineHeight:1.65, wordBreak:"keep-all" }}>{item}</span>
+            <span style={{ color, fontWeight:700, fontSize:14, flexShrink:0, marginTop:1 }}>▸</span>
+            <span style={{ fontSize:15, color:"#1C1C1C", lineHeight:1.7, wordBreak:"keep-all" }}>{item}</span>
           </div>
         ))}
       </div>
