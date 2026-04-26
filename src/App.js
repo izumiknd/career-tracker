@@ -1,1834 +1,504 @@
-import { useState, useEffect, useRef } from "react";
-import logoPathnote from './logo-pathnote.png';
-import {
-  MessageCircle, Brain, Users, Palette, TrendingUp, Wrench, Briefcase,
-  Wind, Gem, DoorOpen, Sparkles, Map, MessageSquare,
-  ClipboardList, FileText, Rocket, Compass, Heart, Award, PenLine,
-  ChevronRight, ChevronLeft, Save, Check, Lightbulb, ArrowRight,
-  BookOpen, Building2, Clock, ScrollText, LayoutDashboard
-} from "lucide-react";
+import { useState, useEffect } from "react";
 
 // ── Design tokens ─────────────────────────────────────────────
 const C = {
-  bg:      "#F5F3F0",
-  surface: "#FDFCFB",
-  border:  "#E2DDD8",
-  accent:  "#5C6BC0",
-  accentL: "#ECEEF8",
-  accentD: "#3949AB",
-  teal:    "#4A7C6F",
-  tealL:   "#EBF3F1",
-  gold:    "#B07D2E",
-  goldL:   "#FAF3E6",
-  green:   "#4A7C5F",
-  greenL:  "#EBF3EE",
-  red:     "#C0483E",
-  redL:    "#FAECEA",
-  text:    "#2C2825",
-  sub:     "#5C564F",
-  muted:   "#A09890",
-  shadow:  "0 1px 8px rgba(0,0,0,0.06)",
-  shadowM: "0 4px 20px rgba(0,0,0,0.09)",
+  bg:       "#F8F6F2",
+  surface:  "#FDFCFA",
+  border:   "#E8E3DC",
+  accent:   "#2D6A4F",   // 深いグリーン
+  accentL:  "#EAF4EF",
+  accentM:  "#52B788",
+  text:     "#1C1C1C",
+  sub:      "#555550",
+  muted:    "#9B9790",
+  warm:     "#C9742B",   // アクセントウォーム
+  warmL:    "#FDF3EA",
+  shadow:   "0 1px 6px rgba(0,0,0,0.06)",
+  shadowM:  "0 4px 24px rgba(0,0,0,0.10)",
 };
 const F  = "'Noto Sans JP','Hiragino Sans',sans-serif";
 const FM = "'DM Mono',monospace";
 
-// ── Legal info (要変更) ────────────────────────────────────────
-const LEGAL = {
-  serviceName: "PathNote",
-  operator:    "【運営者名を記入してください】",
-  email:       "【メールアドレスを記入してください】",
-  since:       "2025年5月1日",
-};
-
 // ── Storage ───────────────────────────────────────────────────
-const KEY = "pathnote_v4";
+const KEY = "pathnote_mvp_v1";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
 const save = (d) => localStorage.setItem(KEY, JSON.stringify(d));
 
-// ── API ───────────────────────────────────────────────────────
-async function callAIStream(messages, onChunk) {
-  const apiKey = process.env.REACT_APP_GROQ_API_KEY;
-  if (!apiKey) throw new Error("APIキーが設定されていません");
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages, temperature: 0.6, max_tokens: 400, stream: true }),
-  });
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e?.error?.message||res.statusText}`); }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let full = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value);
-    const lines = chunk.split("\n").filter(l => l.startsWith("data: ") && l !== "data: [DONE]");
-    for (const line of lines) {
-      try {
-        const json = JSON.parse(line.slice(6));
-        const delta = json.choices?.[0]?.delta?.content || "";
-        if (delta) { full += delta; onChunk(full); }
-      } catch {}
-    }
-  }
-  return full;
-}
-
-async function callAI(messages) {
-  const apiKey = process.env.REACT_APP_GROQ_API_KEY;
-  if (!apiKey) throw new Error("APIキーが設定されていません");
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages, temperature: 0.4, max_tokens: 1200 }),
-  });
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e?.error?.message||res.statusText}`); }
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
-}
-
+// ── Groq API ──────────────────────────────────────────────────
 async function callAIJSON(messages) {
-  const text = await callAI(messages);
+  const apiKey = process.env.REACT_APP_GROQ_API_KEY;
+  if (!apiKey) throw new Error("APIキーが未設定です");
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: "llama-3.1-8b-instant",
+      messages,
+      temperature: 0.5,
+      max_tokens: 800,
+    }),
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e?.error?.message || res.statusText); }
+  const data = await res.json();
+  const text = data.choices?.[0]?.message?.content || "";
   const start = text.indexOf("{");
-  if (start === -1) throw new Error("JSONが見つかりませんでした");
   let depth = 0, end = -1;
   for (let i = start; i < text.length; i++) {
     if (text[i] === "{") depth++;
     else if (text[i] === "}") { depth--; if (depth === 0) { end = i; break; } }
   }
-  if (end === -1) throw new Error("JSONが不完全です");
+  if (start === -1 || end === -1) throw new Error("JSONが取得できませんでした");
   return JSON.parse(text.slice(start, end + 1));
 }
 
-// ── UI Components ─────────────────────────────────────────────
-function ConsultantAvatar({ size = 36 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-      <circle cx="18" cy="18" r="18" fill={C.tealL}/>
-      <ellipse cx="18" cy="14.5" rx="6" ry="6.5" fill="#F5D9C8"/>
-      <ellipse cx="18" cy="10" rx="6.2" ry="4" fill="#5C4033"/>
-      <ellipse cx="12.2" cy="13" rx="1.8" ry="3.5" fill="#5C4033"/>
-      <ellipse cx="23.8" cy="13" rx="1.8" ry="3.5" fill="#5C4033"/>
-      <ellipse cx="15.5" cy="14.5" rx="0.9" ry="1" fill="#2C2825"/>
-      <ellipse cx="20.5" cy="14.5" rx="0.9" ry="1" fill="#2C2825"/>
-      <path d="M14.2 12.8 Q15.5 12.2 16.8 12.8" stroke="#5C4033" strokeWidth="0.8" strokeLinecap="round" fill="none"/>
-      <path d="M19.2 12.8 Q20.5 12.2 21.8 12.8" stroke="#5C4033" strokeWidth="0.8" strokeLinecap="round" fill="none"/>
-      <path d="M16 17 Q18 18.2 20 17" stroke="#C08070" strokeWidth="0.9" strokeLinecap="round" fill="none"/>
-      <rect x="16.2" y="20.5" width="3.6" height="2.5" rx="1" fill="#F5D9C8"/>
-      <path d="M8 36 Q8 27 18 25 Q28 27 28 36" fill="#4A7C6F"/>
-      <path d="M16 25 L14 29 L18 27 L22 29 L20 25" fill="#FDFCFB"/>
-    </svg>
-  );
-}
-
-function BoldText({ text }) {
-  if (!text) return null;
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return (
-    <>{parts.map((part, i) =>
-      part.startsWith("**") && part.endsWith("**")
-        ? <strong key={i} style={{ fontWeight: 700, color: "inherit" }}>{part.slice(2,-2)}</strong>
-        : <span key={i}>{part}</span>
-    )}</>
-  );
-}
-
-const Bar = ({ value, color = C.accent, height = 6 }) => (
-  <div style={{ background: C.border, borderRadius: 99, height, overflow: "hidden" }}>
-    <div style={{ width: `${Math.min(value,100)}%`, height: "100%", background: color, borderRadius: 99, transition: "width 0.8s ease" }}/>
-  </div>
-);
-
-const Badge = ({ label, color = C.accent }) => (
-  <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: `${color}18`, color, border: `1px solid ${color}33`, fontWeight: 600 }}>{label}</span>
-);
-
-const Card = ({ children, style = {} }) => (
-  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: C.shadow, ...style }}>{children}</div>
-);
-
-const Btn = ({ children, onClick, variant = "primary", disabled = false, style = {} }) => {
-  const styles = {
-    primary:   { background: C.accent, color: "#fff", border: "none" },
-    secondary: { background: "transparent", color: C.sub, border: `1px solid ${C.border}` },
-    teal:      { background: C.teal, color: "#fff", border: "none" },
-    ghost:     { background: C.accentL, color: C.accent, border: `1px solid ${C.accent}33` },
-  };
-  return (
-    <button onClick={onClick} disabled={disabled}
-      style={{ padding: "11px 20px", borderRadius: 10, fontSize: 14, fontFamily: F, fontWeight: 600,
-               cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1,
-               transition: "all 0.15s", ...styles[variant], ...style }}>
-      {children}
-    </button>
-  );
-};
-
-// ── Legal pages ───────────────────────────────────────────────
-function LegalSection({ title, children }) {
-  return (
-    <div style={{ marginBottom: 28 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>{title}</h2>
-      <div style={{ fontSize: 14, color: C.sub, lineHeight: 2 }}>{children}</div>
-    </div>
-  );
-}
-
-function LegalArticle({ number, title, children }) {
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontWeight: 700, color: C.text, marginBottom: 6, fontSize: 14 }}>第{number}条　{title}</div>
-      <div style={{ paddingLeft: 14, borderLeft: `2px solid ${C.border}`, lineHeight: 2, fontSize: 14, color: C.sub }}>{children}</div>
-    </div>
-  );
-}
-
-function TermsOfService({ onClose }) {
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: F, color: C.text }}>
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "40px 24px" }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, fontFamily: F, marginBottom: 24, display: "flex", alignItems: "center", gap: 4 }}>
-          <ChevronLeft size={14}/> 戻る
-        </button>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.teal, letterSpacing: "0.1em", marginBottom: 8 }}>TERMS OF SERVICE</div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>利用規約</h1>
-        <p style={{ color: C.muted, fontSize: 13, marginBottom: 32 }}>最終更新日：{LEGAL.since}</p>
-
-        <div style={{ background: C.tealL, border: `1px solid ${C.teal}33`, borderRadius: 12, padding: "14px 18px", marginBottom: 32, fontSize: 13, color: C.teal, lineHeight: 1.8 }}>
-          {LEGAL.operator}（以下「運営者」）が提供するキャリア自己理解サービス「{LEGAL.serviceName}」（以下「本サービス」）の利用に関する条件を定めるものです。本サービスをご利用になる前に、本規約をよくお読みください。ご利用をもって、本規約に同意いただいたものとみなします。
-        </div>
-
-        <LegalArticle number="1" title="サービスの内容">
-          <p>本サービスは、スキルの棚卸し・AIを活用したキャリアコンサルティング対話・自己理解レポートの生成などの機能を提供します。</p>
-          <p style={{ marginTop: 8 }}>本サービスで提供するAIによる対話・分析・提案は参考情報であり、国家資格キャリアコンサルタントによる専門的なコンサルティングの代替ではありません。重要なキャリア上の判断については、専門家へのご相談をあわせてお勧めします。</p>
-        </LegalArticle>
-
-        <LegalArticle number="2" title="利用資格">
-          <p>本サービスは日本国内在住の方を対象としています。未成年の方がご利用になる場合は、親権者の同意を得た上でご利用ください。</p>
-        </LegalArticle>
-
-        <LegalArticle number="3" title="禁止事項">
-          <p>利用者は以下の行為を行ってはなりません。</p>
-          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-            {["法令または公序良俗に違反する行為","運営者または第三者の権利・利益を侵害する行為","本サービスのシステムへの不正アクセス","取得した情報を無断で第三者に提供する行為","AIへの不正操作・プロンプトインジェクション等の試み","本サービスの運営を妨害するおそれのある行為","その他、運営者が不適切と判断する行為"].map((item,i)=>(
-              <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: C.teal, flexShrink: 0 }}>（{i+1}）</span><span>{item}</span></div>
-            ))}
-          </div>
-        </LegalArticle>
-
-        <LegalArticle number="4" title="知的財産権">
-          <p>本サービスに関する著作権その他の知的財産権は、運営者または正当な権利者に帰属します。利用者が入力した情報の権利は利用者に帰属しますが、個人を特定できない形でのサービス改善目的の分析・利用に同意いただくものとします。</p>
-        </LegalArticle>
-
-        <LegalArticle number="5" title="免責事項">
-          <p>運営者は、本サービスの利用により生じた損害（直接・間接を問わず）について、一切の責任を負いません。また以下についても責任を負いかねます。</p>
-          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-            {["AIが生成するコンテンツの正確性・完全性","本サービスの中断・停止・障害","ブラウザのデータ削除等によるデータの消失","本サービスを利用したキャリア上の意思決定の結果"].map((item,i)=>(
-              <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: C.teal, flexShrink: 0 }}>・</span><span>{item}</span></div>
-            ))}
-          </div>
-        </LegalArticle>
-
-        <LegalArticle number="6" title="サービスの変更・停止・終了">
-          <p>運営者は、利用者への事前通知なしに、本サービスの内容を変更、停止、または終了することができます。これにより利用者に損害が生じた場合でも、運営者は責任を負いません。</p>
-        </LegalArticle>
-
-        <LegalArticle number="7" title="規約の変更">
-          <p>運営者は必要と判断した場合、本規約を変更することができます。変更後も本サービスを利用し続けた場合、変更後の規約に同意したものとみなします。</p>
-        </LegalArticle>
-
-        <LegalArticle number="8" title="準拠法・管轄">
-          <p>本規約は日本法に準拠し、本サービスに関して生じた紛争については、運営者の所在地を管轄する裁判所を専属的合意管轄とします。</p>
-        </LegalArticle>
-
-        <LegalArticle number="9" title="お問い合わせ">
-          <p>本規約に関するお問い合わせは、以下までご連絡ください。</p>
-          <p style={{ marginTop: 8 }}>メール：{LEGAL.email}</p>
-        </LegalArticle>
-
-        <div style={{ marginTop: 40, padding: "14px 18px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.muted, textAlign: "center" }}>
-          制定日：{LEGAL.since}　／　{LEGAL.serviceName}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PrivacyPolicy({ onClose }) {
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: F, color: C.text }}>
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "40px 24px" }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, fontFamily: F, marginBottom: 24, display: "flex", alignItems: "center", gap: 4 }}>
-          <ChevronLeft size={14}/> 戻る
-        </button>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.teal, letterSpacing: "0.1em", marginBottom: 8 }}>PRIVACY POLICY</div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>プライバシーポリシー</h1>
-        <p style={{ color: C.muted, fontSize: 13, marginBottom: 32 }}>最終更新日：{LEGAL.since}</p>
-
-        <div style={{ background: C.tealL, border: `1px solid ${C.teal}33`, borderRadius: 12, padding: "14px 18px", marginBottom: 32, fontSize: 13, color: C.teal, lineHeight: 1.8 }}>
-          {LEGAL.operator}（以下「運営者」）は、「{LEGAL.serviceName}」における利用者の個人情報の取扱いについて、以下のとおりプライバシーポリシーを定めます。
-        </div>
-
-        <LegalSection title="1. 収集する情報">
-          <p style={{ fontWeight: 600, color: C.text, marginBottom: 6 }}>利用者が入力する情報</p>
-          {["お名前（ニックネーム可）・年齢","現在の業界・ポジション","このサービスでやりたいこと","職務経歴（会社名・期間・役割・実績）","スキル・経験年数","AIコンサルタントとの対話内容"].map((item,i)=>(
-            <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: C.teal, flexShrink: 0 }}>・</span><span>{item}</span></div>
-          ))}
-          <p style={{ fontWeight: 600, color: C.text, margin: "12px 0 6px" }}>自動的に収集される情報</p>
-          {["アクセスログ（IPアドレス・ブラウザ種別・アクセス日時）","Cookie・ローカルストレージに保存されるデータ"].map((item,i)=>(
-            <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: C.teal, flexShrink: 0 }}>・</span><span>{item}</span></div>
-          ))}
-        </LegalSection>
-
-        <LegalSection title="2. 情報の利用目的">
-          {["本サービスの提供・運営・改善","AIによる分析・提案・レポート生成","お問い合わせへの対応","利用規約違反行為への対応"].map((item,i)=>(
-            <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: C.teal, flexShrink: 0 }}>（{i+1}）</span><span>{item}</span></div>
-          ))}
-        </LegalSection>
-
-        <LegalSection title="3. 第三者への情報提供">
-          <p>運営者は、以下の場合を除き、利用者の個人情報を第三者に提供しません。</p>
-          <div style={{ marginTop: 8 }}>
-            {["利用者本人の同意がある場合","法令に基づく場合","人の生命・身体・財産の保護のために必要な場合"].map((item,i)=>(
-              <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: C.teal, flexShrink: 0 }}>・</span><span>{item}</span></div>
-            ))}
-          </div>
-        </LegalSection>
-
-        <LegalSection title="4. 業務委託先（AIサービス）への情報送信">
-          <p style={{ marginBottom: 12 }}>本サービスは以下の外部AIサービスを利用しています。利用者が入力した情報・対話内容は、AIによる処理のためこれらのサービスに送信されます。</p>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: C.bg }}>
-                  {["サービス名","運営会社","利用目的"].map(h=>(
-                    <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: C.text, borderBottom: `1px solid ${C.border}` }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ padding: "8px 12px", borderBottom: `1px solid ${C.border}`, color: C.sub }}>Groq API</td>
-                  <td style={{ padding: "8px 12px", borderBottom: `1px solid ${C.border}`, color: C.sub }}>Groq, Inc.（米国）</td>
-                  <td style={{ padding: "8px 12px", borderBottom: `1px solid ${C.border}`, color: C.sub }}>AI対話・分析・レポート生成</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: "8px 12px", color: C.sub }}>Vercel</td>
-                  <td style={{ padding: "8px 12px", color: C.sub }}>Vercel, Inc.（米国）</td>
-                  <td style={{ padding: "8px 12px", color: C.sub }}>サービスのホスティング</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </LegalSection>
-
-        <LegalSection title="5. データの保管">
-          <p>利用者が入力したデータは、ご利用のブラウザのローカルストレージに保存されます。サーバー上には保存されません。ブラウザのデータを削除した場合、入力データも削除されますのでご注意ください。</p>
-        </LegalSection>
-
-        <LegalSection title="6. 個人情報の開示・訂正・削除">
-          <p>利用者は、自身の個人情報の開示・訂正・削除を請求することができます。ご請求の場合は、下記お問い合わせ先までご連絡ください。なお、ブラウザのローカルストレージに保存されたデータは、ブラウザの設定から削除することができます。</p>
-        </LegalSection>
-
-        <LegalSection title="7. プライバシーポリシーの変更">
-          <p>運営者は、必要に応じて本ポリシーを変更することがあります。変更後も本サービスを利用し続けた場合、変更後のポリシーに同意したものとみなします。</p>
-        </LegalSection>
-
-        <LegalSection title="8. お問い合わせ">
-          <div style={{ padding: "14px 18px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-            <div><strong>サービス名：</strong>{LEGAL.serviceName}</div>
-            <div style={{ marginTop: 4 }}><strong>運営者：</strong>{LEGAL.operator}</div>
-            <div style={{ marginTop: 4 }}><strong>メール：</strong>{LEGAL.email}</div>
-          </div>
-        </LegalSection>
-
-        <div style={{ marginTop: 40, padding: "14px 18px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.muted, textAlign: "center" }}>
-          制定日：{LEGAL.since}　／　{LEGAL.serviceName}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Footer({ onTerms, onPrivacy }) {
-  return (
-    <div style={{ borderTop: `1px solid ${C.border}`, padding: "20px 24px", textAlign: "center", background: C.surface, fontFamily: F }}>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>© 2025 {LEGAL.serviceName}</div>
-      <div style={{ display: "flex", justifyContent: "center", gap: 20 }}>
-        <button onClick={onTerms} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 12, fontFamily: F, textDecoration: "underline" }}>利用規約</button>
-        <button onClick={onPrivacy} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: 12, fontFamily: F, textDecoration: "underline" }}>プライバシーポリシー</button>
-      </div>
-    </div>
-  );
-}
-
-// ── Data ─────────────────────────────────────────────────────
-const INDUSTRIES = ["IT・通信","メーカー・製造","金融・保険","商社・流通","小売・サービス","医療・福祉","教育","建設・不動産","コンサルティング","広告・メディア","公務員・非営利","その他"];
-const POSITIONS  = ["一般社員・スタッフ","主任・リーダー","係長・課長補佐","課長・マネージャー","部長・シニアマネージャー","役員・経営者","フリーランス","学生・就活中","その他"];
-const WANTS      = ["年収アップ","キャリアアップ","職種・業界チェンジ","ワークライフバランス改善","人間関係","会社の将来性への不安","スキルアップ・成長機会","働き方の変化（リモート等）","その他"];
-const SKILL_CATS = [
-  { label:"コミュニケーション", color:"#4361EE", Icon:MessageCircle, skills:["プレゼンテーション","交渉・説得","ヒアリング","文章作成","語学（英語）","ファシリテーション","クレーム対応","電話・メール応対"] },
-  { label:"思考・分析",         color:"#7B2FBE", Icon:Brain,         skills:["論理的思考","データ分析","課題発見","企画立案","リサーチ","数値管理","問題解決"] },
-  { label:"マネジメント",       color:"#E8960C", Icon:Users,         skills:["チームマネジメント","プロジェクト管理","目標設定","育成・コーチング","採用","予算管理","リスク管理"] },
-  { label:"クリエイティブ",     color:"#E91E8C", Icon:Palette,       skills:["デザイン思考","グラフィック","映像・動画","コピーライティング","SNS運用","ブランディング","写真・撮影"] },
-  { label:"営業・マーケ",       color:"#FF6B35", Icon:TrendingUp,    skills:["営業","マーケティング","集客・広告","顧客管理(CRM)","市場調査","SNSマーケ","コンテンツ制作"] },
-  { label:"専門・技術",         color:"#27A96C", Icon:Wrench,        skills:["IT・プログラミング","財務・会計","法務","医療・介護","教育・研修","建築・設計","製造・品質管理"] },
-  { label:"ビジネス基礎",       color:"#6B8CFF", Icon:Briefcase,     skills:["Excel","Word","PowerPoint","資料作成","スケジュール管理","議事録作成","事務処理","業務改善"] },
-];
-const YEAR_OPTS = ["半年未満","半年〜1年","1〜3年","3〜5年","5年以上"];
-const YEAR_NUM  = { "半年未満":10,"半年〜1年":25,"1〜3年":50,"3〜5年":75,"5年以上":95 };
-
-const THEMES = [
-  { id:"moyo",     Icon:Wind,         label:"仕事のもやもや",             desc:"今の仕事で感じる違和感・不満・迷いを整理したい",      color:"#7B2FBE", opening:"今日は、仕事の中で感じているもやもやについてお話を聞かせていただければと思います。最近、仕事の中でどんな場面でもやもやを感じることが多いですか？" },
-  { id:"taisetu",  Icon:Gem,          label:"仕事で大切にしていること",   desc:"自分が仕事を通じて何を大事にしているか言語化したい",  color:"#E8960C", opening:"今日は、あなたが仕事を通じて大切にしていることについて、一緒に考えていければと思います。これまでの仕事の中で、「これだけは大事にしてきた」と感じることはありますか？" },
-  { id:"tensyoku", Icon:DoorOpen,     label:"転職について考えたい",       desc:"転職の軸・方向性・不安を整理したい",                  color:"#4361EE", opening:"今日は転職についてのお気持ちをお聞かせください。転職を考え始めたのは、どんなきっかけがありましたか？" },
-  { id:"tsuyomi",  Icon:Sparkles,     label:"自分の強みを知りたい",       desc:"自分でも気づいていない強み・得意なことを探りたい",    color:"#27A96C", opening:"今日は、あなた自身の強みについて一緒に探っていければと思います。周りの人から「いつもありがとう」とか「助かった」と言われた経験で、思い浮かぶものはありますか？" },
-  { id:"career",   Icon:Map,          label:"これからのキャリアを考えたい", desc:"将来どんな働き方・仕事をしたいか考えたい",            color:"#FF6B35", opening:"今日は、これからのキャリアについてお話しできればと思います。5年後・10年後の自分について、漠然とでも何かイメージがありますか？" },
-  { id:"free",     Icon:MessageSquare,label:"自由に話したい",             desc:"テーマを決めずに、今感じていることを話したい",        color:"#9097B8", opening:"今日はどんなことでもお話しいただける場です。今、仕事やキャリアのことで頭にあることを、自由に話していただけますか？" },
+// ── 3つの質問 ─────────────────────────────────────────────────
+const QUESTIONS = [
+  {
+    id: "q1",
+    label: "Q1",
+    question: "最近の仕事で、時間を忘れて取り組めたことはありますか？",
+    sub: "「ちょっとだけ」でも大丈夫です",
+    choices: [
+      "誰かの相談に乗ったり、サポートしたとき",
+      "アイデアを出したり、企画を考えたとき",
+      "データや情報を調べて整理したとき",
+      "何かを丁寧に、きれいに仕上げたとき",
+      "チームをまとめたり、場を作ったとき",
+      "新しいことを学んだり、試したとき",
+    ],
+  },
+  {
+    id: "q2",
+    label: "Q2",
+    question: "周りから「ありがとう」「助かった」と言われるのは、どんなときが多いですか？",
+    sub: "「自分では当たり前」と思っていることでもOK",
+    choices: [
+      "話をちゃんと聞いてくれると言われる",
+      "資料や説明がわかりやすいと言われる",
+      "細かいところに気づいてくれると言われる",
+      "落ち着いて場を仕切ってくれると言われる",
+      "アイデアが面白いと言われる",
+      "最後までやり抜いてくれると言われる",
+    ],
+  },
+  {
+    id: "q3",
+    label: "Q3",
+    question: "仕事を通じて、大切にしていることに近いのはどれですか？",
+    sub: "直感で選んでください",
+    choices: [
+      "人の役に立てている実感",
+      "自分が成長できている感覚",
+      "チームや仲間と協力すること",
+      "クオリティへのこだわり",
+      "自分の裁量で動けること",
+      "新しいことへのチャレンジ",
+    ],
+  },
 ];
 
-const BASE_SYSTEM = `あなたは熟練したキャリアコンサルタントです。クライアントと話しています。
-
-## 話し方のルール
-
-**絶対にやってはいけないこと**
-- 「〜ということでしょうか」と相手の言葉を言い換えて確認する
-- 「〜した方がいいと思います」とアドバイスする
-- 「それはすばらしいですね」と評価する
-- 一つの返答に質問を二つ以上入れる
-- 「なぜ」という言葉で質問する（責められている感じになるため）
-- 文末を「〜ですよね」で終える
-- カタカナ語・専門用語を使う
-
-**自然な受け答えの例**
-- 「そうなんですね。」
-- 「〇〇だったんですね。」（相手の言葉をそのまま使う）
-- 「それはつらかったですね。」
-- 「うれしかったんですね。」
-- 「もう少し聞かせてもらえますか？」
-
-**質問するときは一つだけ、シンプルに**
-良い例：「そのとき、どんな気持ちでしたか？」
-良い例：「具体的にはどんな場面でしたか？」
-良い例：「〇〇というのは、どういうことですか？」
-悪い例：「なぜそう思ったんですか？それはいつのことですか？」
-
-## 会話の進め方
-
-1. 相手が言ったことを短く受け取る（「〇〇なんですね。」）
-2. 必要なら気持ちに寄り添う（「それはしんどかったですね。」）
-3. 一つだけ質問する
-
-## 文体
-
-- 話し言葉で自然に書く。書き言葉にならないよう注意
-- 一回の返答は2〜3文まで。短くていい
-- 必ず疑問文で終わる
-- 大事な言葉は **太字** にする（例：**やりがい**）`;
-
-const buildSystemPrompt = (themeId, profileSummary) => {
-  const theme = THEMES.find(t => t.id === themeId) || THEMES[5];
-  const guides = {
-    moyo: `
-## 今日のテーマ：仕事のもやもや
-もやもやの裏にある気持ちや欲求を、一緒に探っていきます。
-- もやもやする具体的な場面を聞く
-- 評価・アドバイスは絶対にしない
-- 「何がそんなに気になるんだろう」という感覚に共感する`,
-    taisetu: `
-## 今日のテーマ：仕事で大切にしていること
-経験の中から、大切にしてきたものを言葉にするお手伝いをします。
-- 具体的なエピソードを通じて価値観を探る
-- 「そのとき、どんな気持ちでしたか？」で感情を引き出す
-- 複数の話に共通するものに気づいてもらう`,
-    tensyoku: `
-## 今日のテーマ：転職について
-「何から離れたいか」より「何に向かいたいか」を引き出します。
-- 転職を考え始めた気持ちの背景を丁寧に聞く
-- 焦りや不安があれば、まずそこに共感する`,
-    tsuyomi: `
-## 今日のテーマ：自分の強みを知りたい
-経験の中から、本人も気づいていない強みを引き出します。
-- 褒められた・感謝された経験を具体的に聞く
-- 「そのとき、何を考えながらやっていましたか？」と聞く
-- 「なぜできたと思いますか？」は使わない`,
-    career: `
-## 今日のテーマ：これからのキャリア
-未来の話をしながら、今の価値観を探ります。
-- 「なりたい姿」より「どんな状態でいたいか」を聞く
-- 「わからない」という気持ちも大事な出発点として受け取る`,
-    free: `
-## 今日のテーマ：自由に話す
-相手が話したいことを中心に進めます。
-- 最初の話題をじっくり深掘りする
-- 相手のペースを最優先する`,
-  };
-  return `${BASE_SYSTEM}
-
-${guides[themeId]||guides.free}
-
-## クライアント情報（参考）
-${profileSummary}
-
-最初のメッセージは必ず次の文から始めてください：
-「${theme.opening}」`;
-};
-
-// ══════════════════════════════════════════════════════════════
+// ── Main App ──────────────────────────────────────────────────
 export default function App() {
-  const [page, setPage]           = useState("loading");
-  const [legalPage, setLegalPage] = useState(null); // "terms" | "privacy" | null
-  const [data, setData]           = useState(null);
-  const [p1step, setP1step]       = useState(1);
-  const [basic, setBasic]         = useState({ name:"", age:"", industry:"", position:"", changeReason:[] });
-  const [careers, setCareers]     = useState([{ id:1, company:"", period:"", role:"", achievements:"" }]);
-  const [skillMap, setSkillMap]   = useState({});
-  const [messages, setMessages]   = useState([]);
-  const [input, setInput]         = useState("");
-  const [aiTyping, setAiTyping]   = useState(false);
-  const [sessionDone, setSessionDone] = useState(false);
-  const [report, setReport]       = useState(null);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [activeTab, setActiveTab]         = useState("note");
-  const [selectedTheme, setSelectedTheme] = useState(null);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
-
-  const chatEndRef = useRef(null);
-  const inputRef   = useRef(null);
+  const [page, setPage]       = useState("home");       // home | quiz | loading | result
+  const [step, setStep]       = useState(0);            // 0-2
+  const [answers, setAnswers] = useState([]);           // {q, a, free?}
+  const [freeText, setFreeText] = useState("");
+  const [showFree, setShowFree] = useState(false);
+  const [result, setResult]   = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [savedResult, setSavedResult] = useState(null);
 
   useEffect(() => {
     const d = load();
-    if (d) {
-      setData(d);
-      setSkillMap(d.skillMap||{});
-      setBasic(d.basic||{ name:"", age:"", industry:"", position:"", changeReason:[] });
-      setCareers(d.careers&&d.careers.length>0 ? d.careers : [{ id:1, company:"", period:"", role:"", achievements:"" }]);
-      setSelectedTheme(d.selectedTheme||null);
-      setPage("dashboard");
-    } else {
-      setPage("home");
-    }
+    if (d?.result) setSavedResult(d);
   }, []);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  const currentQ = QUESTIONS[step];
+  const progress = ((step) / QUESTIONS.length) * 100;
 
-  useEffect(() => {
-    if (!aiTyping && page === "phase2" && messages.length > 0) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [aiTyping, page]);
-
-  const persist = (updates) => {
-    const nd = { ...(data||{}), basic, careers, skillMap, ...updates, savedAt: new Date().toISOString() };
-    setData(nd); save(nd);
-  };
-
-  // セッションを保存（新規追加 or 更新）
-  const persistSession = (sessionUpdates) => {
-    const existing = (data?.sessions||[]);
-    const sid = currentSessionId;
-    let sessions;
-    if (sid && existing.find(s=>s.id===sid)) {
-      sessions = existing.map(s => s.id===sid ? { ...s, ...sessionUpdates, updatedAt: new Date().toISOString() } : s);
-    } else {
-      const newSession = { id: sid||Date.now().toString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...sessionUpdates };
-      sessions = [newSession, ...existing];
-      if (!sid) setCurrentSessionId(newSession.id);
-    }
-    const nd = { ...(data||{}), basic, careers, skillMap, sessions, phase2Done:true, savedAt: new Date().toISOString() };
-    setData(nd); save(nd);
-  };
-
-  // ── ガイド対話 state ──────────────────────────────────────
-  const [sessionStep, setSessionStep]   = useState(0);   // 現在の質問ステップ
-  const [sessionAnswers, setSessionAnswers] = useState([]); // 回答履歴
-  const [currentQ, setCurrentQ]         = useState(null); // 現在の質問オブジェクト
-  const [freeInput, setFreeInput]       = useState("");   // 自由記述入力
-  const [showFree, setShowFree]         = useState(false);
-  const [sessionPhase, setSessionPhase] = useState("intro");
-
-  const toggleReason = (r) => setBasic(prev => ({
-    ...prev,
-    changeReason: prev.changeReason.includes(r) ? prev.changeReason.filter(x=>x!==r) : [...prev.changeReason, r]
-  }));
-  const addCareer    = () => setCareers(prev => [...prev, { id:Date.now(), company:"", period:"", role:"", achievements:"" }]);
-  const removeCareer = (id) => setCareers(prev => prev.filter(c=>c.id!==id));
-  const updateCareer = (id, field, val) => setCareers(prev => prev.map(c=>c.id===id?{...c,[field]:val}:c));
-  const toggleSkill  = (skill) => setSkillMap(prev => { const n={...prev}; if(n[skill]) delete n[skill]; else n[skill]="半年未満"; return n; });
-  const setYears     = (skill, y) => setSkillMap(prev => ({...prev,[skill]:y}));
-
-  // ── 固定導入質問（テーマ別） ──────────────────────────────
-  const INTRO_QUESTIONS = {
-    moyo: [
-      { id:"m1", q:"最近、仕事でモヤモヤした場面はありましたか？", choices:["会議や打ち合わせで","上司や同僚との関係で","仕事の内容・やり方で","評価や待遇で"], alt:"m1b" },
-      { id:"m1b", q:"最近、「なんか違うな」と感じた瞬間はありますか？", choices:["仕事を頼まれたとき","自分の仕事を見直したとき","他の人の働き方を見たとき","特定の業務をやっているとき"], alt:null },
-    ],
-    taisetu: [
-      { id:"t1", q:"これまでの仕事で、「これだけは大切にしてきた」と思うことはありますか？", choices:["誠実さ・誠実に向き合う","質・完成度へのこだわり","人との信頼関係","自分で考えて動くこと"], alt:"t1b" },
-      { id:"t1b", q:"仕事で「これをやっているとき、自分らしいな」と感じる場面は？", choices:["誰かをサポートしているとき","アイデアを出しているとき","丁寧に仕上げているとき","人に説明・伝えているとき"], alt:null },
-    ],
-    tensyoku: [
-      { id:"te1", q:"転職を考え始めたのは、どんなきっかけからですか？", choices:["今の仕事に限界を感じた","やりたいことが別にある","環境（人・会社）が合わない","収入・待遇への不満"], alt:"te1b" },
-      { id:"te1b", q:"今の仕事を続けながら、何か「欠けている」と感じるものはありますか？", choices:["やりがい・手応え","成長できている感覚","人間関係・チームの雰囲気","プライベートとのバランス"], alt:null },
-    ],
-    tsuyomi: [
-      { id:"s1", q:"周りから「ありがとう」や「助かった」と言われた経験で思い浮かぶものはありますか？", choices:["仕事を丁寧に仕上げたとき","困っている人をサポートしたとき","アイデアや提案が採用されたとき","場を取りまとめたとき"], alt:"s1b" },
-      { id:"s1b", q:"「自分が当たり前にやっていること」で、他の人が意外と苦手そうにしていることはありますか？", choices:["細かいことへの気配り","段取りを組むこと","人の話を聞くこと","わかりやすく整理すること"], alt:null },
-    ],
-    career: [
-      { id:"c1", q:"5年後、どんな状態でいたいですか？（なんとなくで大丈夫です）", choices:["専門性を深めていたい","マネジメント・リーダーをやっていたい","独立・起業していたい","ワークライフバランスが整っている"], alt:"c1b" },
-      { id:"c1b", q:"どんな仕事をしているとき、時間を忘れて集中できますか？", choices:["人と話したり相談したりするとき","何かを作り上げているとき","情報を調べて整理するとき","計画を立てて実行するとき"], alt:null },
-    ],
-    free: [
-      { id:"f1", q:"最近の仕事で、印象に残っていることを一つ教えてください。", choices:["うまくいったこと","つらかったこと","モヤモヤしたこと","意外と楽しかったこと"], alt:"f1b" },
-      { id:"f1b", q:"今日、一番話してみたいテーマはどれですか？", choices:["自分の強みについて","仕事のモヤモヤについて","これからのキャリアについて","大切にしていることについて"], alt:null },
-    ],
-  };
-
-  // ガイド対話を開始
-  const startGuidedSession = (themeId) => {
-    const newId = Date.now().toString();
-    setCurrentSessionId(newId);
-    setSelectedTheme(themeId);
-    setSessionAnswers([]);
-    setSessionStep(0);
-    setSessionPhase("intro");
+  const handleChoice = async (choice) => {
+    const newAnswers = [...answers, { q: currentQ.question, a: choice }];
+    setAnswers(newAnswers);
+    setFreeText("");
     setShowFree(false);
-    setFreeInput("");
-    const qs = INTRO_QUESTIONS[themeId] || INTRO_QUESTIONS.free;
-    setCurrentQ(qs[0]);
-    setPage("phase2");
-  };
 
-  // 回答を受け取り次のステップへ
-  const handleAnswer = async (answer) => {
-    const newAnswers = [...sessionAnswers, { q: currentQ?.q, a: answer }];
-    setSessionAnswers(newAnswers);
-    setShowFree(false);
-    setFreeInput("");
-
-    const themeQs = INTRO_QUESTIONS[selectedTheme] || INTRO_QUESTIONS.free;
-    const nextIntroQ = themeQs[sessionStep + 1];
-
-    if (nextIntroQ && sessionStep < themeQs.length - 1) {
-      // まだ固定質問がある
-      setSessionStep(prev => prev + 1);
-      setCurrentQ(nextIntroQ);
+    if (step < QUESTIONS.length - 1) {
+      setStep(s => s + 1);
     } else {
-      // 固定質問が終わったらAI深掘りフェーズへ
-      setSessionPhase("deepdive");
-      setCurrentQ(null);
-      await fetchNextQuestion(newAnswers, "deepdive");
-    }
-    // 途中保存
-    persistSession({ themeId: selectedTheme, answers: newAnswers, phase: "in_progress" });
-  };
-
-  // わからないボタン
-  const handleDontKnow = async () => {
-    const themeQs = INTRO_QUESTIONS[selectedTheme] || INTRO_QUESTIONS.free;
-    const altId = currentQ?.alt;
-    const altQ = themeQs.find(q => q.id === altId);
-    if (altQ) {
-      setCurrentQ(altQ);
-    } else {
-      // 別角度でAIに質問を生成させる
-      await fetchNextQuestion(sessionAnswers, "skip");
+      await runAnalysis(newAnswers);
     }
   };
 
-  // AIが次の深掘り質問を生成
-  const fetchNextQuestion = async (answers, phase) => {
-    setAiTyping(true);
-    try {
-      const answersText = answers.map(a => `Q: ${a.q}\nA: ${a.a}`).join("\n\n");
-      const deepdiveCount = answers.filter(a => a._deepdive).length;
-
-      const prompt = phase === "deepdive" && deepdiveCount >= 3
-        ? `以下はキャリアの自己理解セッションの回答です。十分な情報が集まりました。
-回答履歴：
-${answersText}
-
-次の形式のJSONのみで返答してください：
-{"done": true, "summary": "ここまでの回答から見えてきたことを2文で"}` 
-        : `以下はキャリアの自己理解セッションの回答です。
-テーマ：${THEMES.find(t=>t.id===selectedTheme)?.label||"自由"}
-回答履歴：
-${answersText}
-
-あなたはキャリアコンサルタントです。回答を深掘りするために、次の1問を考えてください。
-ルール：
-- 日本語の自然な話し言葉で
-- 30秒で答えられるシンプルな質問
-- 選択肢を3〜4個用意する（短く・具体的に）
-- 「なぜ」は使わない
-- 前の回答に関連させる
-
-次の形式のJSONのみで返答してください：
-{"done": false, "question": "質問文", "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"]}`;
-
-      const result = await callAIJSON([{ role: "user", content: prompt }]);
-
-      if (result.done) {
-        setSessionPhase("summary");
-        setCurrentQ({ q: result.summary, choices: [], isSummary: true });
-      } else {
-        setCurrentQ({ q: result.question, choices: result.choices || [], _deepdive: true });
-      }
-    } catch {
-      setCurrentQ({ q: "もう少し詳しく聞かせてもらえますか？", choices: ["続けて話す"], _deepdive: true });
-    }
-    setAiTyping(false);
-  };
-
-  // 深掘り回答
-  const handleDeepdiveAnswer = async (answer) => {
-    const newAnswers = [...sessionAnswers, { q: currentQ?.q, a: answer, _deepdive: true }];
-    setSessionAnswers(newAnswers);
+  const handleFreeSubmit = async () => {
+    if (!freeText.trim()) return;
+    const newAnswers = [...answers, { q: currentQ.question, a: freeText.trim(), free: true }];
+    setAnswers(newAnswers);
+    setFreeText("");
     setShowFree(false);
-    setFreeInput("");
-    persistSession({ themeId: selectedTheme, answers: newAnswers, phase: "in_progress" });
-    await fetchNextQuestion(newAnswers, "deepdive");
-  };
 
-  const buildProfileSummary = () =>
-    `名前: ${basic.name||"未入力"}、年齢: ${basic.age?basic.age+"歳":"未入力"}、業界: ${basic.industry||"未入力"}、ポジション: ${basic.position||"未入力"}、やりたいこと: ${basic.changeReason.join("、")||"未入力"}\n職歴: ${careers.filter(c=>c.company||c.role).map(c=>`${c.company}（${c.period}）${c.role}${c.achievements?" ／"+c.achievements:""}`).join(" / ")||"未入力"}\nスキル: ${Object.keys(skillMap).join("、")||"未入力"}`;
-
-  const completePhase1 = () => {
-    persist({ basic, careers, skillMap, phase1Done: true });
-    setPage("theme-select");
-  };
-
-  const startConsulting = async (themeId) => {
-    const newId = Date.now().toString();
-    setCurrentSessionId(newId);
-    setSelectedTheme(themeId);
-    setMessages([{ role:"assistant", content:"" }]);
-    setAiTyping(true);
-    try {
-      const sysPrompt = buildSystemPrompt(themeId, buildProfileSummary());
-      await callAIStream(
-        [{ role:"system", content:sysPrompt }, { role:"user", content:"よろしくお願いします。" }],
-        (partial) => setMessages([{ role:"assistant", content:partial }])
-      );
-    } catch {
-      setMessages([{ role:"assistant", content:"申し訳ありません。接続エラーが発生しました。再度お試しください。" }]);
+    if (step < QUESTIONS.length - 1) {
+      setStep(s => s + 1);
+    } else {
+      await runAnalysis(newAnswers);
     }
-    setAiTyping(false);
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || aiTyping) return;
-    const userMsg = { role:"user", content:input.trim() };
-    const newMessages = [...messages, userMsg];
-    setMessages([...newMessages, { role:"assistant", content:"" }]);
-    setInput("");
-    setAiTyping(true);
-    try {
-      const userTurns = newMessages.filter(m=>m.role==="user").length;
-      const isNearEnd = userTurns >= 7 && !sessionDone;
-      const endingHint = isNearEnd ? "\n\n【セッション終盤】そろそろ対話のまとめに入ってください。これまでの会話で繰り返し出てきた言葉やテーマを丁寧にフィードバックし、クライアント自身に気づきを確認してもらってください。「ここまでの対話をもとにレポートを作成できます」と最後に自然に伝えてください。" : "";
-      const sysPrompt = buildSystemPrompt(selectedTheme||"free", buildProfileSummary()) + endingHint;
-      let finalReply = "";
-      await callAIStream(
-        [{ role:"system", content:sysPrompt }, ...newMessages],
-        (partial) => { finalReply = partial; setMessages([...newMessages, { role:"assistant", content:partial }]); }
-      );
-      if (isNearEnd) setSessionDone(true);
-      persistSession({ themeId: selectedTheme, messages:[...newMessages, { role:"assistant", content:finalReply }] });
-    } catch {
-      setMessages([...newMessages, { role:"assistant", content:"申し訳ありません。エラーが発生しました。もう一度送信してください。" }]);
+  const handleDontKnow = () => {
+    const newAnswers = [...answers, { q: currentQ.question, a: "わからない／思いつかない" }];
+    setAnswers(newAnswers);
+    setFreeText("");
+    setShowFree(false);
+
+    if (step < QUESTIONS.length - 1) {
+      setStep(s => s + 1);
+    } else {
+      runAnalysis(newAnswers);
     }
-    setAiTyping(false);
   };
 
-  const generateReport = async () => {
-    setReportLoading(true);
+  const runAnalysis = async (finalAnswers) => {
+    setPage("loading");
+    setLoading(true);
     try {
-      const answersText = sessionAnswers.map(a => `Q: ${a.q}\nA: ${a.a}`).join("\n\n");
-      const profileSummary = `職歴: ${careers.map(c=>`${c.company} ${c.role}`).join("、")}、スキル: ${Object.keys(skillMap).join("、")}`;
-      const prompt = `以下はキャリアの自己理解セッションの回答記録です。JSONのみで返答してください（説明文・マークダウン不要）。
+      const answersText = finalAnswers.map(a => `Q: ${a.q}\nA: ${a.a}`).join("\n\n");
+      const prompt = `以下は自己理解のための3つの質問への回答です。
+回答者のことを深く読み取り、JSONのみで返答してください（説明文・コードブロック不要）。
 
-プロフィール: ${profileSummary}
-テーマ: ${THEMES.find(t=>t.id===selectedTheme)?.label||"自由対話"}
-
-回答記録:
+回答:
 ${answersText}
 
 以下のJSON形式のみで返答:
-{"strengths":["強み1","強み2","強み3"],"softSkills":["ソフトスキル1","ソフトスキル2","ソフトスキル3"],"values":["価値観1","価値観2","価値観3"],"wants":["やりたいこと1","やりたいこと2","やりたいこと3"],"careerAxis":"キャリアの軸（2〜3文）","selfPR":"自己PR文のベース（150文字程度）","nextActions":["まずは○○してみましょう","小さなアクション2","小さなアクション3"],"aiComment":"全体的な所感・応援メッセージ（2〜3文）","insights":[{"label":"端的なキーワード（10文字以内）","text":"気づきの背景・なぜ重要かを2〜3文"}]}
+{"strengths":["強み1（10〜20文字）","強み2","強み3"],"values":["価値観1（10〜20文字）","価値観2","価値観3"],"wants":["やりたいこと1（15〜25文字）","やりたいこと2"],"message":"回答者へのメッセージ（2〜3文。あなたの言葉で、温かく、具体的に）","keyword":"この人を一言で表すキーワード（5〜10文字）"}
 
-ルール：
-- strengths：回答から見えた行動・思考・姿勢の強み。3〜4個
-- softSkills：対人・思考・感情面のスキル（例：傾聴力、巻き込み力）。3〜4個。Excel等のハードスキルは含めない
-- values：大切にしていること。3〜4個
-- wants：やりたいこと・向かいたい方向。2〜3個
-- nextActions：「まずは○○してみましょう」という具体的で小さな行動提案。3個
-- insights：3〜5個。labelは10文字以内`;
-      const result = await callAIJSON([{ role:"user", content:prompt }]);
-      setReport(result);
-      persistSession({ themeId: selectedTheme, answers: sessionAnswers, insights: result.insights||[], phase:"done" });
-      persist({ report:result, phase2Done:true, selectedTheme });
-      setPage("report");
-    } catch(e) {
-      alert(`レポート生成エラー: ${e.message}`);
+ルール:
+- strengths：回答から見えた「行動・思考・姿勢」の具体的な強み。3個
+- values：大切にしていること・譲れないもの。3個
+- wants：この人が向かいたい方向・やりたいこと。2個
+- message：「あなたは〜」で始まる、温かみのある2〜3文
+- keyword：この人の本質を一言で表す言葉（例：「人を動かす力」「静かな情熱」）
+- すべて日本語で、具体的に、冗長にならずに`;
+
+      const res = await callAIJSON([{ role: "user", content: prompt }]);
+      setResult(res);
+      const saveData = { result: res, answers: finalAnswers, createdAt: new Date().toISOString() };
+      save(saveData);
+      setSavedResult(saveData);
+      setPage("result");
+    } catch (e) {
+      alert("エラーが発生しました。もう一度試してください。\n" + e.message);
+      setPage("quiz");
     }
-    setReportLoading(false);
+    setLoading(false);
   };
 
-  const IS = { width:"100%", padding:"10px 14px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:14, fontFamily:F, outline:"none" };
+  const restart = () => {
+    setStep(0);
+    setAnswers([]);
+    setFreeText("");
+    setShowFree(false);
+    setResult(null);
+    setPage("quiz");
+  };
 
-  // ── Shell ──────────────────────────────────────────────────
-  const shell = (children, fullHeight = false) => (
-    <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:F, display:"flex", flexDirection:"column" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-        *{box-sizing:border-box;margin:0;padding:0}
-        input:focus,select:focus,textarea:focus{outline:none;border-color:${C.accent}!important;box-shadow:0 0 0 3px ${C.accentL}!important}
-        button:not(:disabled):hover{opacity:0.85}
-        textarea{resize:vertical}
-        ::-webkit-scrollbar{width:4px}
-        ::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px}
-      `}</style>
-      <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:58, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow, flexShrink:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }} onClick={()=>setPage(data?"dashboard":"home")}>
-          <img src={logoPathnote} alt="PathNote" style={{ width:30, height:30, objectFit:"contain" }}/>
-          <span style={{ fontWeight:700, fontSize:16, color:C.text, letterSpacing:"-0.02em" }}>PathNote</span>
-        </div>
-        {data && <Btn variant="ghost" onClick={()=>setPage("dashboard")} style={{ padding:"7px 16px", fontSize:13 }}>マイページ</Btn>}
-      </nav>
-      <div style={{ flex:1, display:"flex", flexDirection:"column" }}>{children}</div>
-      {!fullHeight && <Footer onTerms={()=>setLegalPage("terms")} onPrivacy={()=>setLegalPage("privacy")}/>}
-    </div>
+  // ── GLOBAL STYLES ─────────────────────────────────────────
+  const GlobalStyles = () => (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+      @keyframes fadeUp   { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+      @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+      @keyframes spin     { to{transform:rotate(360deg)} }
+      @keyframes pulse    { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+      @keyframes shimmer  { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+      * { box-sizing:border-box; margin:0; padding:0; }
+      body { background:${C.bg}; font-family:${F}; }
+      button { font-family:${F}; }
+      textarea, input { font-family:${F}; }
+      ::-webkit-scrollbar { width:4px; }
+      ::-webkit-scrollbar-thumb { background:${C.border}; border-radius:2px; }
+      .choice-btn:hover { border-color:${C.accent} !important; background:${C.accentL} !important; transform:translateY(-1px); box-shadow:0 4px 12px rgba(45,106,79,0.12) !important; }
+      .dont-know:hover  { color:${C.sub} !important; }
+      .free-btn:hover   { border-color:${C.accentM} !important; color:${C.accent} !important; }
+    `}</style>
   );
 
-  // ── Legal pages ────────────────────────────────────────────
-  if (legalPage === "terms")   return <TermsOfService onClose={()=>setLegalPage(null)}/>;
-  if (legalPage === "privacy") return <PrivacyPolicy  onClose={()=>setLegalPage(null)}/>;
-
-  // ── Loading ────────────────────────────────────────────────
-  if (page === "loading") return shell(
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flex:1, gap:12, color:C.muted }}>
-      <div style={{ width:20, height:20, border:`2px solid ${C.border}`, borderTopColor:C.accent, borderRadius:"50%", animation:"spin .8s linear infinite" }}/>
-      読み込み中...
-    </div>
-  );
-
-  // ── Home ───────────────────────────────────────────────────
-  if (page === "home") return shell(
-    <div>
-      <div style={{ background:`linear-gradient(135deg,#F0F4FF 0%,#E8F7F5 100%)`, padding:"72px 24px 60px", textAlign:"center" }}>
-        <div style={{ maxWidth:640, margin:"0 auto" }}>
-          <Badge label="キャリア自己理解サービス" color={C.teal}/>
-          <h1 style={{ fontSize:36, fontWeight:800, lineHeight:1.3, marginTop:20, marginBottom:16, color:C.text, letterSpacing:"-0.03em" }}>
-            自分を知ることが、<br/>次の一歩につながる。
-          </h1>
-          <p style={{ fontSize:16, color:C.sub, lineHeight:1.9, marginBottom:36 }}>
-            スキルの棚卸しとAIキャリアコンサルティングを通じて、<br/>
-            あなたの強み・価値観・キャリアの軸を言語化します。
-          </p>
-          <Btn onClick={()=>setPage("phase1")} style={{ padding:"16px 40px", fontSize:16, borderRadius:12, display:"inline-flex", alignItems:"center", gap:8 }}>
-            無料で始める <ChevronRight size={17}/>
-          </Btn>
+  // ── NAV ───────────────────────────────────────────────────
+  const Nav = ({ showResult }) => (
+    <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow }}>
+      <div onClick={()=>setPage("home")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
+        <div style={{ width:26, height:26, background:C.accent, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2 11L5 4L7 9L9 6L12 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </div>
+        <span style={{ fontWeight:800, fontSize:15, color:C.text, letterSpacing:"-0.02em" }}>PathNote</span>
       </div>
-      <div style={{ maxWidth:760, margin:"0 auto", padding:"60px 24px" }}>
-        <h2 style={{ fontSize:22, fontWeight:700, textAlign:"center", marginBottom:40 }}>PathNoteでできること</h2>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:20 }}>
+      {showResult && savedResult && (
+        <button onClick={()=>{ setResult(savedResult.result); setPage("result"); }}
+          style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 12px", color:C.sub, cursor:"pointer", fontSize:12 }}>
+          結果を見る
+        </button>
+      )}
+    </nav>
+  );
+
+  // ══════════════════════════════════════════════════════════
+  // HOME
+  // ══════════════════════════════════════════════════════════
+  if (page === "home") return (
+    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F }}>
+      <GlobalStyles/>
+      <Nav showResult={true}/>
+
+      {/* Hero */}
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"56px 24px 40px", textAlign:"center" }}>
+        <div style={{ display:"inline-block", padding:"4px 14px", borderRadius:20, background:C.accentL, border:`1px solid ${C.accentM}44`, color:C.accent, fontSize:12, fontWeight:700, marginBottom:24, letterSpacing:"0.04em" }}>
+          3問 · 2分 · すぐ結果
+        </div>
+
+        <h1 style={{ fontSize:"clamp(26px,6vw,40px)", fontWeight:800, lineHeight:1.25, color:C.text, marginBottom:20, letterSpacing:"-0.03em" }}>
+          自分の強みを、<br/>言葉にしよう。
+        </h1>
+
+        <p style={{ fontSize:15, color:C.sub, lineHeight:1.9, marginBottom:36 }}>
+          たった3問に答えるだけで、AIがあなたの<br/>
+          強み・価値観・やりたいことを言語化します。
+        </p>
+
+        <button onClick={()=>{ setStep(0); setAnswers([]); setPage("quiz"); }}
+          style={{ width:"100%", maxWidth:320, padding:"16px 32px", background:C.accent, color:"#fff", border:"none", borderRadius:14, fontSize:16, fontWeight:700, cursor:"pointer", boxShadow:`0 4px 20px rgba(45,106,79,0.3)`, transition:"all 0.2s", letterSpacing:"-0.01em" }}>
+          はじめる →
+        </button>
+
+        {savedResult && (
+          <button onClick={()=>{ setResult(savedResult.result); setPage("result"); }}
+            style={{ display:"block", margin:"16px auto 0", background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, textDecoration:"underline" }}>
+            前回の結果を見る（{new Date(savedResult.createdAt).toLocaleDateString("ja-JP")}）
+          </button>
+        )}
+      </div>
+
+      {/* 特徴 */}
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"0 24px 48px" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           {[
-            { Icon:ClipboardList, title:"スキルの棚卸し",    desc:"職歴・スキル・実績を整理。客観的な自分の強みを把握します。",       color:C.accent },
-            { Icon:MessageCircle, title:"AIコンサルティング", desc:"AIが対話を通じてソフトスキルや価値観を引き出します。",            color:C.teal },
-            { Icon:FileText,      title:"自己理解レポート",   desc:"対話の内容から強み・価値観・自己PR文のベースを生成。",            color:C.gold },
-            { Icon:Rocket,        title:"書類への活用",       desc:"（近日公開）履歴書・職務経歴書の自動生成機能。",                  color:C.muted },
-          ].map(s=>(
-            <Card key={s.title} style={{ padding:20 }}>
-              <div style={{ marginBottom:14 }}><s.Icon size={26} color={s.color} strokeWidth={1.5}/></div>
-              <div style={{ fontWeight:700, fontSize:15, marginBottom:8, color:s.color }}>{s.title}</div>
-              <div style={{ fontSize:13, color:C.sub, lineHeight:1.7 }}>{s.desc}</div>
-            </Card>
+            { icon:"⚡", text:"3問に答えるだけ。職歴の入力不要" },
+            { icon:"🧠", text:"AIがあなたの言葉から強みを読み取る" },
+            { icon:"📝", text:"「言語化できた感」が得られる" },
+          ].map((item, i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 18px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
+              <span style={{ fontSize:20, flexShrink:0 }}>{item.icon}</span>
+              <span style={{ fontSize:14, color:C.sub, lineHeight:1.6 }}>{item.text}</span>
+            </div>
           ))}
-        </div>
-        <div style={{ textAlign:"center", marginTop:48 }}>
-          <Btn onClick={()=>setPage("phase1")} style={{ padding:"14px 36px", fontSize:15, borderRadius:12, display:"inline-flex", alignItems:"center", gap:8 }}>
-            スキルの棚卸しを始める <ChevronRight size={16}/>
-          </Btn>
         </div>
       </div>
     </div>
   );
 
-  // ── Phase 1 ────────────────────────────────────────────────
-  if (page === "phase1") return shell(
-    <div style={{ maxWidth:720, margin:"0 auto", padding:"32px 20px", animation:"fadeUp 0.4s ease" }}>
-      <div style={{ marginBottom:32 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.muted, marginBottom:8 }}>
-          <span>PHASE 1：スキルの棚卸し</span><span>{p1step}/4</span>
-        </div>
-        <div style={{ background:C.border, borderRadius:99, height:4 }}>
-          <div style={{ width:`${(p1step/4)*100}%`, height:"100%", background:C.accent, borderRadius:99, transition:"width 0.4s ease" }}/>
-        </div>
-        <div style={{ display:"flex", marginTop:10 }}>
-          {[["1","基本情報"],["2","職務経歴"],["3","スキル"],["4","確認"]].map(([n,label],i)=>(
-            <div key={n} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-              <div style={{ width:24, height:24, borderRadius:"50%", background:p1step>i?C.accent:p1step===i+1?C.accent:C.border, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700 }}>{p1step>i?"✓":n}</div>
-              <span style={{ fontSize:11, color:p1step===i+1?C.accent:C.muted }}>{label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+  // ══════════════════════════════════════════════════════════
+  // QUIZ
+  // ══════════════════════════════════════════════════════════
+  if (page === "quiz") return (
+    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F }}>
+      <GlobalStyles/>
+      <Nav/>
 
-      {p1step === 1 && (
-        <div>
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>基本情報</h2>
-          <p style={{ color:C.sub, fontSize:14, marginBottom:24 }}>あなたの現在の状況を教えてください</p>
-          <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div>
-                <label style={{ display:"block", fontSize:12, fontWeight:600, color:C.sub, marginBottom:6 }}>お名前（ニックネームでも）</label>
-                <input value={basic.name} onChange={e=>setBasic(p=>({...p,name:e.target.value}))} placeholder="例：田中 太郎" style={IS}/>
-              </div>
-              <div>
-                <label style={{ display:"block", fontSize:12, fontWeight:600, color:C.sub, marginBottom:6 }}>年齢</label>
-                <input value={basic.age} onChange={e=>setBasic(p=>({...p,age:e.target.value}))} placeholder="例：32" type="number" style={IS}/>
-              </div>
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:12, fontWeight:600, color:C.sub, marginBottom:6 }}>現在の業界</label>
-              <select value={basic.industry} onChange={e=>setBasic(p=>({...p,industry:e.target.value}))} style={{...IS,cursor:"pointer"}}>
-                <option value="">選択してください</option>
-                {INDUSTRIES.map(i=><option key={i} value={i}>{i}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:12, fontWeight:600, color:C.sub, marginBottom:6 }}>現在のポジション</label>
-              <select value={basic.position} onChange={e=>setBasic(p=>({...p,position:e.target.value}))} style={{...IS,cursor:"pointer"}}>
-                <option value="">選択してください</option>
-                {POSITIONS.map(p=><option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:12, fontWeight:600, color:C.sub, marginBottom:8 }}>このサービスでやりたいこと（複数選択可）</label>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                {WANTS.map(r=>{
-                  const sel = basic.changeReason.includes(r);
-                  return (
-                    <div key={r} onClick={()=>toggleReason(r)}
-                      style={{ padding:"7px 14px", borderRadius:20, border:`1.5px solid ${sel?C.accent:C.border}`, background:sel?C.accentL:C.surface, color:sel?C.accent:C.sub, fontSize:13, cursor:"pointer", fontWeight:sel?600:400, transition:"all 0.15s" }}>
-                      {r}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"28px 20px 48px" }}>
+        {/* プログレス */}
+        <div style={{ marginBottom:32 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <span style={{ fontSize:12, fontWeight:700, color:C.accent, fontFamily:FM }}>
+              {step + 1} / {QUESTIONS.length}
+            </span>
+            <span style={{ fontSize:11, color:C.muted }}>
+              {["あと2問", "あと1問", "最後の質問"][step]}
+            </span>
           </div>
-          <div style={{ marginTop:32 }}>
-            <Btn onClick={()=>setP1step(2)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              次へ：職務経歴 <ChevronRight size={15}/>
-            </Btn>
+          <div style={{ background:C.border, borderRadius:99, height:4, overflow:"hidden" }}>
+            <div style={{ width:`${((step) / QUESTIONS.length) * 100 + 5}%`, height:"100%", background:`linear-gradient(90deg,${C.accent},${C.accentM})`, borderRadius:99, transition:"width 0.5s ease" }}/>
           </div>
         </div>
-      )}
 
-      {p1step === 2 && (
-        <div>
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>職務経歴</h2>
-          <p style={{ color:C.sub, fontSize:14, marginBottom:12 }}>これまでの職歴を入力してください（直近から）</p>
-          <div style={{ background:C.accentL, border:`1px solid ${C.accent}33`, borderRadius:10, padding:"10px 16px", marginBottom:20, fontSize:13, color:C.accent, display:"flex", alignItems:"center", gap:8 }}>
-            <Lightbulb size={15} color={C.accent} strokeWidth={1.8}/>
-            <span>実績・担当業務を詳しく入力するほど、AIのスキル解析と提案の精度が上がります</span>
+        {/* 質問カード */}
+        <div key={step} style={{ animation:"fadeUp 0.35s ease" }}>
+          <div style={{ marginBottom:6, fontSize:11, fontWeight:700, color:C.accentM, letterSpacing:"0.08em" }}>
+            {currentQ.label}
           </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            {careers.map((c,i)=>(
-              <Card key={c.id} style={{ padding:20 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-                  <span style={{ fontSize:13, fontWeight:700, color:C.accent }}>職歴 {i+1}</span>
-                  {careers.length > 1 && <button onClick={()=>removeCareer(c.id)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:18 }}>×</button>}
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                    <div>
-                      <label style={{ display:"block", fontSize:11, fontWeight:600, color:C.muted, marginBottom:5 }}>会社名</label>
-                      <input value={c.company} onChange={e=>updateCareer(c.id,"company",e.target.value)} placeholder="例：株式会社〇〇" style={IS}/>
-                    </div>
-                    <div>
-                      <label style={{ display:"block", fontSize:11, fontWeight:600, color:C.muted, marginBottom:5 }}>在籍期間</label>
-                      <input value={c.period} onChange={e=>updateCareer(c.id,"period",e.target.value)} placeholder="例：2019年4月〜2023年3月" style={IS}/>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display:"block", fontSize:11, fontWeight:600, color:C.muted, marginBottom:5 }}>職種・役割</label>
-                    <input value={c.role} onChange={e=>updateCareer(c.id,"role",e.target.value)} placeholder="例：営業マネージャー、フロントエンドエンジニアなど" style={IS}/>
-                  </div>
-                  <div>
-                    <label style={{ display:"block", fontSize:11, fontWeight:600, color:C.muted, marginBottom:5 }}>主な実績・担当業務</label>
-                    <textarea value={c.achievements} onChange={e=>updateCareer(c.id,"achievements",e.target.value)}
-                      placeholder="例：10名のチームをマネジメントし、売上前年比120%を達成。新規顧客開拓で年間50件の商談を担当。"
-                      style={{...IS, minHeight:80, lineHeight:1.7}}/>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-          <button onClick={addCareer} style={{ width:"100%", padding:"12px", background:"transparent", border:`1.5px dashed ${C.border}`, borderRadius:12, color:C.muted, cursor:"pointer", fontSize:14, fontFamily:F, marginTop:12 }}>
-            + 職歴を追加する
-          </button>
-          <div style={{ display:"flex", gap:12, marginTop:28 }}>
-            <Btn variant="secondary" onClick={()=>setP1step(1)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><ChevronLeft size={15}/> 戻る</Btn>
-            <Btn onClick={()=>setP1step(3)} style={{ flex:2, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>次へ：スキル <ChevronRight size={15}/></Btn>
-          </div>
-        </div>
-      )}
+          <h2 style={{ fontSize:"clamp(17px,4.5vw,21px)", fontWeight:700, color:C.text, lineHeight:1.55, marginBottom:6 }}>
+            {currentQ.question}
+          </h2>
+          <p style={{ fontSize:13, color:C.muted, marginBottom:24 }}>{currentQ.sub}</p>
 
-      {p1step === 3 && (
-        <div style={{ margin:"0 -24px" }}>
-          <div style={{ padding:"0 24px", marginBottom:24 }}>
-            <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>スキルの棚卸し</h2>
-            <p style={{ color:C.sub, fontSize:14, marginBottom:6 }}>経験・得意なことをすべて選んでください</p>
-            <div style={{ color:C.accent, fontFamily:FM, fontSize:12, fontWeight:600 }}>{Object.keys(skillMap).length} 個選択中</div>
-          </div>
-          {SKILL_CATS.map(cat=>(
-            <div key={cat.label} style={{ marginBottom:24, padding:"0 24px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
-                <cat.Icon size={15} color={cat.color} strokeWidth={1.8}/>
-                <span style={{ fontSize:13, fontWeight:700, color:cat.color }}>{cat.label}</span>
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:8 }}>
-                {cat.skills.map(skill=>{
-                  const sel = !!skillMap[skill];
-                  return (
-                    <div key={skill} style={{ border:`1.5px solid ${sel?cat.color:C.border}`, background:sel?`${cat.color}0D`:C.surface, borderRadius:10, padding:"10px 12px", transition:"all 0.15s", boxShadow:sel?`0 2px 8px ${cat.color}20`:"none" }}>
-                      <div onClick={()=>toggleSkill(skill)} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", marginBottom:sel?8:0 }}>
-                        <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${sel?cat.color:C.border}`, background:sel?cat.color:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#fff", flexShrink:0 }}>{sel?"✓":""}</div>
-                        <span style={{ fontSize:13, color:sel?C.text:C.sub }}>{skill}</span>
-                      </div>
-                      {sel && (
-                        <select value={skillMap[skill]} onChange={e=>setYears(skill,e.target.value)} style={{...IS,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>
-                          {YEAR_OPTS.map(y=><option key={y} value={y}>{y}</option>)}
-                        </select>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          <div style={{ display:"flex", gap:12, marginTop:8, padding:"0 24px" }}>
-            <Btn variant="secondary" onClick={()=>setP1step(2)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><ChevronLeft size={15}/> 戻る</Btn>
-            <Btn onClick={()=>setP1step(4)} style={{ flex:2, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              登録内容を確認する <ChevronRight size={15}/>
-            </Btn>
-          </div>
-        </div>
-      )}
-
-      {p1step === 4 && (
-        <div>
-          <h2 style={{ fontSize:22, fontWeight:700, marginBottom:6 }}>登録内容の確認</h2>
-          <p style={{ color:C.sub, fontSize:14, marginBottom:24 }}>内容を確認して、問題なければAIコンサルティングへ進みましょう</p>
-
-          <Card style={{ marginBottom:16, padding:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>基本情報</div>
-              <button onClick={()=>setP1step(1)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline" }}>編集</button>
-            </div>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
-              {[{label:"名前",value:basic.name||"未入力"},{label:"年齢",value:basic.age?`${basic.age}歳`:"未入力"},{label:"業界",value:basic.industry||"未入力"},{label:"ポジション",value:basic.position||"未入力"}].map(item=>(
-                <div key={item.label} style={{ background:C.bg, borderRadius:8, padding:"8px 14px", minWidth:100 }}>
-                  <div style={{ fontSize:10, color:C.muted, marginBottom:2 }}>{item.label}</div>
-                  <div style={{ fontSize:13, fontWeight:600, color:C.text }}>{item.value}</div>
-                </div>
+          {/* 選択肢 */}
+          {!showFree && (
+            <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
+              {currentQ.choices.map((choice, i) => (
+                <button key={i} className="choice-btn" onClick={() => handleChoice(choice)}
+                  style={{ textAlign:"left", padding:"14px 18px", background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:12, cursor:"pointer", fontSize:14, color:C.text, lineHeight:1.5, transition:"all 0.18s", boxShadow:C.shadow }}>
+                  {choice}
+                </button>
               ))}
             </div>
-            {basic.changeReason.length > 0 && (
-              <div style={{ marginTop:12 }}>
-                <div style={{ fontSize:11, color:C.muted, marginBottom:6 }}>やりたいこと</div>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                  {basic.changeReason.map(r=>(
-                    <span key={r} style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:C.accentL, color:C.accent, fontWeight:600 }}>{r}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </Card>
+          )}
 
-          <Card style={{ marginBottom:16, padding:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>職務経歴</div>
-              <button onClick={()=>setP1step(2)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline" }}>編集</button>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              {careers.filter(c=>c.company||c.role).map(c=>(
-                <div key={c.id} style={{ borderLeft:`3px solid ${C.accent}`, paddingLeft:12 }}>
-                  <div style={{ fontWeight:600, fontSize:14, color:C.text }}>{c.company||"会社名未入力"}</div>
-                  <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{c.period} ／ {c.role}</div>
-                  {c.achievements && <div style={{ fontSize:12, color:C.sub, marginTop:4, lineHeight:1.6 }}>{c.achievements}</div>}
-                </div>
-              ))}
-              {careers.every(c=>!c.company&&!c.role) && <div style={{ fontSize:13, color:C.muted }}>未入力</div>}
-            </div>
-          </Card>
-
-          <Card style={{ marginBottom:24, padding:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
-                <Wrench size={15} strokeWidth={1.8}/>
-                <span style={{ fontSize:13, fontWeight:700, color:C.accent }}>ハードスキル（{Object.keys(skillMap).length}個）</span>
-              </div>
-              <button onClick={()=>setP1step(3)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, textDecoration:"underline" }}>編集</button>
-            </div>
-            {Object.keys(skillMap).length === 0 ? (
-              <div style={{ fontSize:13, color:C.muted }}>未選択</div>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-                {SKILL_CATS.map(cat=>{
-                  const mySkills = cat.skills.filter(s=>skillMap[s]);
-                  if (!mySkills.length) return null;
-                  return (
-                    <div key={cat.label}>
-                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-                        <cat.Icon size={12} color={cat.color} strokeWidth={1.8}/>
-                        <span style={{ fontSize:11, fontWeight:700, color:cat.color }}>{cat.label}</span>
-                      </div>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-                        {mySkills.map(skill=>(
-                          <div key={skill} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", background:`${cat.color}0D`, border:`1px solid ${cat.color}33`, borderRadius:20 }}>
-                            <span style={{ fontSize:12, color:C.text, fontWeight:500 }}>{skill}</span>
-                            <span style={{ fontSize:10, color:cat.color, fontFamily:FM, fontWeight:600 }}>{skillMap[skill]}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-
-          <div style={{ background:C.tealL, border:`1px solid ${C.teal}33`, borderRadius:12, padding:"16px 20px", marginBottom:20, fontSize:14, color:C.teal, lineHeight:1.7, display:"flex", gap:12, alignItems:"flex-start" }}>
-            <ConsultantAvatar size={28}/>
-            <div>
-              <div style={{ fontWeight:700, marginBottom:4 }}>次はAIキャリアコンサルティングへ</div>
-              <div style={{ fontSize:13 }}>AIコンサルタントがあなたに質問しながら、言葉にしにくいソフトスキルや価値観を一緒に引き出します。対話は5〜8往復程度です。</div>
-            </div>
-          </div>
-
-          <div style={{ display:"flex", gap:12, marginBottom:12 }}>
-            <Btn variant="secondary" onClick={()=>setP1step(3)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              <ChevronLeft size={15}/> 戻る
-            </Btn>
-            <Btn variant="teal" onClick={completePhase1} style={{ flex:2, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              <MessageCircle size={15}/> AIコンサルティングへ進む
-            </Btn>
-          </div>
-          <button onClick={()=>{ persist({ basic, careers, skillMap, phase1Done:true }); setPage("dashboard"); }}
-            style={{ width:"100%", padding:"12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-            <Save size={14}/> いったん保存してマイページへ
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  // ── Theme Select ───────────────────────────────────────────
-  if (page === "theme-select") return shell(
-    <div style={{ maxWidth:600, margin:"0 auto", padding:"40px 20px", animation:"fadeUp 0.4s ease" }}>
-      <div style={{ textAlign:"center", marginBottom:36 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:C.teal, letterSpacing:"0.1em", marginBottom:8 }}>STEP 2</div>
-        <h1 style={{ fontSize:22, fontWeight:800, marginBottom:10 }}>今日はどんなことを話しますか？</h1>
-        <p style={{ color:C.sub, fontSize:14, lineHeight:1.8 }}>気になるテーマを選ぶと、AIが1問ずつ質問します。<br/>「わからない」でも大丈夫です。</p>
-      </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:32 }}>
-        {THEMES.map(theme=>(
-          <button key={theme.id} onClick={()=>startGuidedSession(theme.id)}
-            style={{ textAlign:"left", padding:"18px 20px", background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:14, cursor:"pointer", fontFamily:F, transition:"all 0.15s", boxShadow:C.shadow, display:"flex", alignItems:"center", gap:16 }}>
-            <div style={{ width:40, height:40, borderRadius:10, background:`${theme.color}12`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <theme.Icon size={20} color={theme.color} strokeWidth={1.5}/>
-            </div>
-            <div>
-              <div style={{ fontWeight:700, fontSize:15, color:theme.color, marginBottom:3 }}>{theme.label}</div>
-              <div style={{ fontSize:12, color:C.sub, lineHeight:1.5 }}>{theme.desc}</div>
-            </div>
-            <ChevronRight size={16} color={C.muted} style={{ marginLeft:"auto", flexShrink:0 }}/>
-          </button>
-        ))}
-      </div>
-      <button onClick={()=>setPage(data?"dashboard":"phase1")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F, display:"flex", alignItems:"center", gap:4 }}>
-        <ChevronLeft size={14}/> 戻る
-      </button>
-    </div>
-  );
-
-  // ── Phase 2: ガイド対話 ────────────────────────────────────
-  if (page === "phase2") {
-    const theme = THEMES.find(t=>t.id===selectedTheme);
-    const totalAnswers = sessionAnswers.length;
-    const isSummaryPhase = sessionPhase === "summary";
-    const isDeepdive = sessionPhase === "deepdive";
-    const progressPct = Math.min(100, totalAnswers * 15);
-
-    return shell(
-      <div style={{ display:"flex", flexDirection:"column", height:"calc(100dvh - 58px)", overflow:"hidden" }}>
-        {/* ヘッダー */}
-        <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"12px 16px", flexShrink:0 }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <button onClick={()=>setPage(data?"dashboard":"home")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", padding:"4px", display:"flex", alignItems:"center" }}>
-                <ChevronLeft size={20} strokeWidth={1.8}/>
-              </button>
-              {theme && <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <theme.Icon size={14} color={theme.color} strokeWidth={1.8}/>
-                <span style={{ fontSize:13, fontWeight:700, color:theme.color }}>{theme.label}</span>
-              </div>}
-            </div>
-            <div style={{ display:"flex", gap:6 }}>
-              <button onClick={()=>setPage("theme-select")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"4px 10px", color:C.muted, cursor:"pointer", fontSize:12, fontFamily:F }}>テーマ変更</button>
-              {totalAnswers >= 4 && (
-                <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ padding:"5px 12px", fontSize:12, display:"flex", alignItems:"center", gap:4 }}>
-                  <FileText size={12}/> {reportLoading?"生成中...":"まとめる"}
-                </Btn>
-              )}
-            </div>
-          </div>
-          {/* プログレスバー */}
-          <div style={{ background:C.border, borderRadius:99, height:3 }}>
-            <div style={{ width:`${progressPct}%`, height:"100%", background:C.teal, borderRadius:99, transition:"width 0.5s ease" }}/>
-          </div>
-          <div style={{ fontSize:10, color:C.muted, marginTop:4 }}>{totalAnswers}問回答済み{totalAnswers >= 4 ? " ・ いつでもまとめられます" : ""}</div>
-        </div>
-
-        {/* メインエリア */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"24px 16px 16px" }}>
-          <div style={{ maxWidth:560, margin:"0 auto" }}>
-
-            {/* 回答済み履歴（折りたたみ） */}
-            {sessionAnswers.length > 0 && (
-              <div style={{ marginBottom:24 }}>
-                {sessionAnswers.map((ans, i)=>(
-                  <div key={i} style={{ marginBottom:12 }}>
-                    <div style={{ fontSize:12, color:C.muted, marginBottom:4 }}>{ans.q}</div>
-                    <div style={{ fontSize:14, color:C.sub, background:C.bg, padding:"10px 14px", borderRadius:10, border:`1px solid ${C.border}` }}>{ans.a}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 現在の質問カード */}
-            {aiTyping ? (
-              <div style={{ display:"flex", alignItems:"center", gap:10, padding:"20px", background:C.surface, borderRadius:16, border:`1px solid ${C.border}`, boxShadow:C.shadow }}>
-                <ConsultantAvatar size={32}/>
-                <div style={{ display:"flex", gap:4 }}>
-                  {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
-                </div>
-              </div>
-            ) : currentQ && !isSummaryPhase && (
-              <div style={{ background:C.surface, borderRadius:16, border:`1px solid ${C.border}`, padding:"20px", boxShadow:C.shadow, animation:"fadeUp 0.3s ease" }}>
-                <div style={{ display:"flex", gap:12, marginBottom:20 }}>
-                  <div style={{ flexShrink:0 }}><ConsultantAvatar size={32}/></div>
-                  <p style={{ fontSize:16, fontWeight:600, color:C.text, lineHeight:1.7, margin:0 }}>{currentQ.q}</p>
-                </div>
-
-                {/* 選択肢 */}
-                {(currentQ.choices||[]).length > 0 && !showFree && (
-                  <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
-                    {currentQ.choices.map((choice, i)=>(
-                      <button key={i} onClick={()=> isDeepdive ? handleDeepdiveAnswer(choice) : handleAnswer(choice)}
-                        style={{ textAlign:"left", padding:"12px 16px", background:C.bg, border:`1.5px solid ${C.border}`, borderRadius:12, cursor:"pointer", fontSize:14, color:C.text, fontFamily:F, transition:"all 0.15s" }}>
-                        {choice}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* 自由記述 */}
-                {showFree ? (
-                  <div>
-                    <textarea value={freeInput} onChange={e=>setFreeInput(e.target.value)}
-                      placeholder="自由に書いてみてください..."
-                      style={{...IS, minHeight:80, resize:"none", borderRadius:10, padding:"10px 14px", marginBottom:10, fontSize:14, lineHeight:1.7 }}
-                      autoFocus/>
-                    <div style={{ display:"flex", gap:8 }}>
-                      <Btn onClick={()=> freeInput.trim() && (isDeepdive ? handleDeepdiveAnswer(freeInput) : handleAnswer(freeInput))} disabled={!freeInput.trim()} style={{ flex:1 }}>送る</Btn>
-                      <Btn variant="secondary" onClick={()=>setShowFree(false)} style={{ flex:1 }}>戻る</Btn>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                    <button onClick={()=>setShowFree(true)}
-                      style={{ padding:"9px 16px", borderRadius:10, border:`1px solid ${C.accent}`, background:C.accentL, color:C.accent, cursor:"pointer", fontSize:13, fontFamily:F, fontWeight:600 }}>
-                      自由に書く
-                    </button>
-                    <button onClick={handleDontKnow}
-                      style={{ padding:"9px 16px", borderRadius:10, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F }}>
-                      わからない
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* サマリーフェーズ */}
-            {isSummaryPhase && currentQ && (
-              <div style={{ background:C.tealL, borderRadius:16, border:`1px solid ${C.teal}33`, padding:"24px", animation:"fadeUp 0.3s ease" }}>
-                <div style={{ display:"flex", gap:12, marginBottom:20 }}>
-                  <ConsultantAvatar size={32}/>
-                  <div>
-                    <div style={{ fontSize:12, fontWeight:700, color:C.teal, marginBottom:6 }}>ここまでの内容から</div>
-                    <p style={{ fontSize:14, color:C.sub, lineHeight:1.8 }}>{currentQ.q}</p>
-                  </div>
-                </div>
-                <Btn variant="teal" onClick={generateReport} disabled={reportLoading} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, fontSize:15, padding:"14px" }}>
-                  <FileText size={16}/> {reportLoading ? "生成中..." : "結果をまとめる"}
-                </Btn>
-                <button onClick={()=> fetchNextQuestion(sessionAnswers, "deepdive")}
-                  style={{ width:"100%", marginTop:10, padding:"10px", background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F }}>
-                  もう少し話す
+          {/* 自由記述 */}
+          {showFree ? (
+            <div style={{ animation:"fadeIn 0.2s ease" }}>
+              <textarea value={freeText} onChange={e=>setFreeText(e.target.value)}
+                placeholder="思っていることを自由に書いてください..."
+                autoFocus
+                style={{ width:"100%", padding:"14px 16px", background:C.surface, border:`1.5px solid ${C.accent}`, borderRadius:12, fontSize:14, lineHeight:1.7, resize:"none", minHeight:110, color:C.text, outline:"none", boxShadow:`0 0 0 3px ${C.accentL}` }}/>
+              <div style={{ display:"flex", gap:10, marginTop:12 }}>
+                <button onClick={handleFreeSubmit} disabled={!freeText.trim()}
+                  style={{ flex:2, padding:"13px", background:freeText.trim()?C.accent:"#ccc", color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:700, cursor:freeText.trim()?"pointer":"not-allowed", transition:"background 0.2s" }}>
+                  次へ →
+                </button>
+                <button onClick={()=>setShowFree(false)}
+                  style={{ flex:1, padding:"13px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:10, fontSize:14, color:C.sub, cursor:"pointer" }}>
+                  戻る
                 </button>
               </div>
-            )}
-
-            <div ref={chatEndRef}/>
-          </div>
+            </div>
+          ) : (
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <button className="free-btn" onClick={()=>setShowFree(true)}
+                style={{ padding:"10px 18px", borderRadius:10, border:`1.5px solid ${C.border}`, background:"transparent", color:C.sub, cursor:"pointer", fontSize:13, fontWeight:600, transition:"all 0.15s" }}>
+                ✏️ 自分の言葉で書く
+              </button>
+              <button className="dont-know" onClick={handleDontKnow}
+                style={{ padding:"10px 18px", borderRadius:10, border:"none", background:"transparent", color:C.muted, cursor:"pointer", fontSize:13, transition:"color 0.15s" }}>
+                わからない
+              </button>
+            </div>
+          )}
         </div>
       </div>
-    , true);
-  }
+    </div>
+  );
 
-  // ── Report ─────────────────────────────────────────────────
-  if (page === "report") {
-    const r = report || data?.report;
-    if (!r) return shell(<div style={{ padding:40, textAlign:"center", color:C.muted }}>レポートがありません</div>);
-    return shell(
-      <div style={{ maxWidth:720, margin:"0 auto", padding:"32px 20px", animation:"fadeUp 0.4s ease" }}>
-        <div style={{ textAlign:"center", marginBottom:36 }}>
-          <Badge label="自己理解レポート" color={C.teal}/>
-          <h1 style={{ fontSize:26, fontWeight:800, marginTop:12, marginBottom:8 }}>{basic.name||data?.basic?.name||"あなた"}さんの強み・価値観レポート</h1>
-          <p style={{ color:C.sub, fontSize:14 }}>{new Date().toLocaleDateString("ja-JP")} 作成</p>
-        </div>
+  // ══════════════════════════════════════════════════════════
+  // LOADING
+  // ══════════════════════════════════════════════════════════
+  if (page === "loading") return (
+    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column" }}>
+      <GlobalStyles/>
+      <Nav/>
+      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", textAlign:"center" }}>
+        <div style={{ width:52, height:52, border:`3px solid ${C.border}`, borderTopColor:C.accent, borderRadius:"50%", animation:"spin 0.9s linear infinite", marginBottom:28 }}/>
+        <h2 style={{ fontSize:20, fontWeight:700, color:C.text, marginBottom:10 }}>分析中です...</h2>
+        <p style={{ color:C.sub, fontSize:14, lineHeight:1.8 }}>
+          3つの回答から、あなたの<br/>強み・価値観・やりたいことを読み取っています。
+        </p>
+      </div>
+    </div>
+  );
 
-        <Card style={{ background:C.tealL, border:`1px solid ${C.teal}33`, marginBottom:20 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10, color:C.teal }}>
-            <MessageCircle size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>AIコンサルタントより</span>
-          </div>
-          <p style={{ color:C.sub, fontSize:14, lineHeight:1.8 }}>{r.aiComment}</p>
-        </Card>
+  // ══════════════════════════════════════════════════════════
+  // RESULT
+  // ══════════════════════════════════════════════════════════
+  if (page === "result") {
+    const r = result;
+    if (!r) return null;
 
-        <Card style={{ marginBottom:20 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10, color:C.accent }}>
-            <Compass size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>あなたのキャリアの軸</span>
-          </div>
-          <p style={{ color:C.text, fontSize:15, lineHeight:1.8, fontWeight:500 }}>{r.careerAxis}</p>
-        </Card>
+    return (
+      <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F }}>
+        <GlobalStyles/>
+        <Nav/>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, marginBottom:20 }}>
-          {[{label:"強み",Icon:Award,items:r.strengths,color:C.accent},{label:"ソフトスキル",Icon:Sparkles,items:r.softSkills,color:C.teal},{label:"価値観",Icon:Heart,items:r.values,color:C.gold}].map(section=>(
-            <Card key={section.label} style={{ padding:18 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, color:section.color }}>
-                <section.Icon size={13} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>{section.label}</span>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {(section.items||[]).map((item,i)=>(
-                  <div key={i} style={{ fontSize:13, color:C.sub, display:"flex", alignItems:"flex-start", gap:6 }}>
-                    <span style={{ color:section.color, flexShrink:0 }}>▸</span>{item}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ))}
-        </div>
+        <div style={{ maxWidth:560, margin:"0 auto", padding:"32px 20px 56px", animation:"fadeUp 0.4s ease" }}>
 
-        {/* やりたいこと */}
-        {(r.wants||[]).length > 0 && (
-          <Card style={{ marginBottom:20, background:C.accentL, border:`1px solid ${C.accent}33` }}>
-            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:C.accent }}>
-              <Map size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>やりたいこと・向かいたい方向</span>
+          {/* キーワード */}
+          <div style={{ textAlign:"center", marginBottom:32 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.muted, letterSpacing:"0.1em", marginBottom:12 }}>あなたを一言で表すと</div>
+            <div style={{ display:"inline-block", padding:"10px 28px", background:C.accent, color:"#fff", borderRadius:40, fontSize:20, fontWeight:800, letterSpacing:"-0.01em", boxShadow:`0 4px 20px rgba(45,106,79,0.25)` }}>
+              {r.keyword}
             </div>
+          </div>
+
+          {/* メッセージ */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"22px 24px", marginBottom:20, boxShadow:C.shadow }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.accentM, marginBottom:10, letterSpacing:"0.06em" }}>AIからのメッセージ</div>
+            <p style={{ fontSize:15, color:C.text, lineHeight:1.9, fontWeight:500 }}>{r.message}</p>
+          </div>
+
+          {/* 強み */}
+          <SectionCard title="強み" color={C.accent} items={r.strengths}
+            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1L9.5 5.5L14.5 6L11 9.5L12 14.5L7.5 12L3 14.5L4 9.5L0.5 6L5.5 5.5L7.5 1Z" fill={C.accent}/></svg>}
+          />
+
+          {/* 価値観 */}
+          <SectionCard title="大切にしていること" color={C.warm} items={r.values}
+            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 13S2 9 2 5.5C2 3.5 3.5 2 5.5 2C6.5 2 7.5 2.8 7.5 2.8S8.5 2 9.5 2C11.5 2 13 3.5 13 5.5C13 9 7.5 13 7.5 13Z" fill={C.warm}/></svg>}
+          />
+
+          {/* やりたいこと */}
+          <SectionCard title="向かいたい方向" color="#7B5EA7" items={r.wants}
+            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5H13M9 3.5L13 7.5L9 11.5" stroke="#7B5EA7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          />
+
+          {/* アクション */}
+          <div style={{ background:`linear-gradient(135deg,${C.accentL},#F0F8F4)`, border:`1px solid ${C.accentM}44`, borderRadius:16, padding:"22px 24px", marginBottom:28 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.accent, marginBottom:12, letterSpacing:"0.06em" }}>次のステップ</div>
+            <p style={{ fontSize:14, color:C.sub, lineHeight:1.8, marginBottom:16 }}>
+              この結果を起点に、もう少し深く自己理解を進めてみませんか？
+              次のステップでは、AIとの対話を通じて、さらに詳しく言語化できます。
+            </p>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {(r.wants||[]).map((item,i)=>(
-                <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px", background:"rgba(255,255,255,0.6)", borderRadius:8 }}>
-                  <span style={{ color:C.accent, flexShrink:0, fontWeight:700 }}>→</span>
-                  <span style={{ fontSize:13, color:C.text }}>{item}</span>
+              <button onClick={restart}
+                style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
+                もう一度やってみる
+              </button>
+              <button onClick={()=>alert("フェーズ②は近日公開予定です！")}
+                style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.accent}`, borderRadius:12, fontSize:14, fontWeight:600, color:C.accent, cursor:"pointer" }}>
+                AI対話でもっと深掘りする →
+              </button>
+            </div>
+          </div>
+
+          {/* 回答のふりかえり */}
+          <details style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"16px 20px" }}>
+            <summary style={{ fontSize:13, fontWeight:600, color:C.sub, cursor:"pointer", listStyle:"none", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span>あなたの回答を見る</span>
+              <span style={{ color:C.muted, fontSize:12 }}>▼</span>
+            </summary>
+            <div style={{ marginTop:16, display:"flex", flexDirection:"column", gap:14 }}>
+              {answers.map((ans, i) => (
+                <div key={i}>
+                  <div style={{ fontSize:12, color:C.muted, marginBottom:4 }}>{ans.q}</div>
+                  <div style={{ fontSize:14, color:C.sub, background:C.bg, padding:"10px 14px", borderRadius:10, border:`1px solid ${C.border}` }}>
+                    {ans.a}
+                  </div>
                 </div>
               ))}
             </div>
-          </Card>
-        )}
+          </details>
 
-        <Card style={{ marginBottom:20, background:C.goldL, border:`1px solid ${C.gold}33` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10, color:C.gold }}>
-            <PenLine size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>自己PR文のベース</span>
-          </div>
-          <p style={{ color:C.text, fontSize:14, lineHeight:1.9 }}>{r.selfPR}</p>
-          <div style={{ fontSize:11, color:C.muted, marginTop:8 }}>※このテキストをベースに、自己PR文を仕上げてください</div>
-        </Card>
-
-        <Card style={{ marginBottom:32 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:C.green }}>
-            <ArrowRight size={14} strokeWidth={1.8}/><span style={{ fontSize:12, fontWeight:700 }}>まず、これをやってみましょう</span>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-            {(r.nextActions||r.nextSteps||[]).map((step,i)=>(
-              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"12px 16px", background:C.greenL, borderRadius:10 }}>
-                <div style={{ width:22, height:22, borderRadius:"50%", background:C.green, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, flexShrink:0 }}>{i+1}</div>
-                <span style={{ fontSize:14, color:C.sub, lineHeight:1.6 }}>{step}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <div style={{ display:"flex", gap:12 }}>
-          <Btn onClick={()=>{ persist({ report:r }); setPage("dashboard"); }} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-            <Save size={14}/> 保存してマイページへ
-          </Btn>
-          <Btn variant="secondary" onClick={()=>setPage("phase2")} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-            <ChevronLeft size={14}/> 対話に戻る
-          </Btn>
         </div>
-      </div>
-    );
-  }
-
-  // ── Dashboard ──────────────────────────────────────────────
-  if (page === "dashboard") {
-    const d2 = data||{};
-    const b  = d2.basic||{};
-    const r  = d2.report;
-    const sm = d2.skillMap||{};
-    const cs = d2.careers||[];
-    const skillCount = Object.keys(sm).length;
-    const savedAt    = d2.savedAt ? new Date(d2.savedAt).toLocaleDateString("ja-JP") : "—";
-
-    // タブ定義
-    const TABS = [
-      { id:"note",     label:"キャリアノート",  Icon:BookOpen },
-      { id:"dialogue", label:"対話ログ",        Icon:MessageCircle },
-      { id:"career",   label:"職務経歴",         Icon:Building2 },
-    ];
-    // activeTabはstateから使う（初期値を"note"に設定済み）
-
-    return shell(
-      <div style={{ maxWidth:860, margin:"0 auto", padding:"32px 20px", animation:"fadeUp 0.4s ease" }}>
-
-        {/* ── ヘッダー ── */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:28, gap:12, flexWrap:"wrap" }}>
-          <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:C.accent, letterSpacing:"0.1em", marginBottom:4 }}>MY PAGE</div>
-            <h1 style={{ fontSize:20, fontWeight:800, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.name?`${b.name}さんのキャリアノート`:"マイキャリアノート"}</h1>
-            <div style={{ color:C.muted, fontSize:12, marginTop:3 }}>最終更新: {savedAt}</div>
-          </div>
-          <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-            <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ fontSize:12, padding:"8px 12px", display:"flex", alignItems:"center", gap:5, whiteSpace:"nowrap" }}>
-              <MessageCircle size={13}/> AI対話
-            </Btn>
-            <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} variant="ghost" style={{ fontSize:12, padding:"8px 12px", whiteSpace:"nowrap" }}>編集</Btn>
-          </div>
-        </div>
-
-        {/* ── ステータスバー ── */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:28 }}>
-          {[
-            { label:"登録スキル",     value:skillCount,              unit:"個", color:C.accent, bg:C.accentL, done:skillCount>0 },
-            { label:"AI対話",        value:d2.phase2Done?"完了":"未実施", unit:"", color:d2.phase2Done?C.teal:C.muted, bg:d2.phase2Done?C.tealL:C.bg, done:d2.phase2Done },
-            { label:"自己理解レポート", value:r?"作成済み":"未作成",    unit:"", color:r?C.gold:C.muted, bg:r?C.goldL:C.bg, done:!!r },
-          ].map(card=>(
-            <div key={card.label} style={{ background:card.bg, border:`1px solid ${card.done?card.color+"44":C.border}`, borderRadius:12, padding:"14px 16px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                <div style={{ color:card.color, fontSize:11, fontWeight:700 }}>{card.label}</div>
-                {card.done ? <Check size={14} color={card.color} strokeWidth={2.5}/> : <div style={{ width:14, height:14, borderRadius:3, border:`1.5px solid ${C.border}` }}/>}
-              </div>
-              <div style={{ fontSize:typeof card.value==="number"?22:13, fontWeight:700, color:card.color }}>
-                {card.value}<span style={{ fontSize:11, color:card.color, opacity:0.7 }}>{card.unit}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── タブナビ ── */}
-        <div style={{ display:"flex", gap:0, marginBottom:28, borderBottom:`2px solid ${C.border}`, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
-          {TABS.map(tab=>(
-            <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"10px 16px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===tab.id?C.accent:"transparent"}`, marginBottom:"-2px", color:activeTab===tab.id?C.accent:C.muted, cursor:"pointer", fontSize:13, fontFamily:F, fontWeight:activeTab===tab.id?700:400, transition:"all 0.2s", whiteSpace:"nowrap", flexShrink:0 }}>
-              <tab.Icon size={14} strokeWidth={1.8}/>{tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ════════════════════════════════════════════
-            タブ①：キャリアノート
-        ════════════════════════════════════════════ */}
-        {activeTab === "note" && (
-          <div style={{ animation:"fadeUp 0.3s ease" }}>
-            {r ? (() => {
-              // ── 複数セッションから強み・ソフトスキル・価値観をスコアリング ──
-              const sessions = d2.sessions || [];
-              const now = Date.now();
-              const DAY = 86400000;
-
-              // セッションごとに時間的重みを計算（新しいほど高い）
-              const scoreItem = (items, sessionDate) => {
-                const age = (now - new Date(sessionDate||now).getTime()) / DAY;
-                const weight = age < 7 ? 3 : age < 30 ? 2 : 1;
-                return (items||[]).map(item => ({ item, weight }));
-              };
-
-              const aggregate = (field) => {
-                const map = {};
-                // 最新レポート
-                (r[field]||[]).forEach(item => { map[item] = (map[item]||0) + 3; });
-                // 過去セッション
-                sessions.forEach(s => {
-                  if (!s.insights) return;
-                  const age = (now - new Date(s.createdAt||now).getTime()) / DAY;
-                  const w = age < 7 ? 3 : age < 30 ? 2 : 1;
-                  // insightsのlabelを強みとして加算
-                  (s.insights||[]).forEach(ins => { map[ins.label] = (map[ins.label]||0) + w; });
-                });
-                return Object.entries(map)
-                  .sort((a,b) => b[1]-a[1])
-                  .map(([item, score]) => ({ item, score }));
-              };
-
-              const scoredStrengths  = aggregate("strengths");
-              const scoredSoftSkills = aggregate("softSkills");
-              const scoredValues     = aggregate("values");
-              const maxSessions      = sessions.length;
-
-              return (
-                <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-
-                  {/* キャリアの軸 */}
-                  <Card style={{ borderLeft:`4px solid ${C.teal}`, borderRadius:"0 16px 16px 0" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.teal }}>
-                      <Compass size={18} strokeWidth={1.8}/>
-                      <span style={{ fontSize:15, fontWeight:700 }}>キャリアの軸</span>
-                    </div>
-                    <p style={{ color:C.text, fontSize:15, lineHeight:2, fontWeight:500 }}>{r.careerAxis}</p>
-                  </Card>
-
-                  {/* 強み（スコア順） */}
-                  {scoredStrengths.length > 0 && (
-                    <Card>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
-                          <Award size={18} strokeWidth={1.8}/>
-                          <span style={{ fontSize:15, fontWeight:700 }}>強み</span>
-                        </div>
-                        {maxSessions > 1 && <span style={{ fontSize:11, color:C.muted }}>{maxSessions}回の対話から優先度順に表示</span>}
-                      </div>
-                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                        {scoredStrengths.map(({item, score}, i)=>(
-                          <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:i===0?C.accentL:`${C.accent}07`, borderRadius:10, border:`1px solid ${i===0?C.accent+"44":C.border}` }}>
-                            <div style={{ width:22, height:22, borderRadius:"50%", background:i===0?C.accent:C.border, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, flexShrink:0 }}>{i+1}</div>
-                            <span style={{ fontSize:14, color:C.text, lineHeight:1.7, fontWeight:i===0?600:400, wordBreak:"keep-all", overflowWrap:"anywhere", flex:1 }}>{item}</span>
-                            {maxSessions > 1 && score > 3 && <span style={{ fontSize:10, color:C.accent, fontWeight:700, flexShrink:0 }}>複数回</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  )}
-
-                  {/* ソフトスキル・価値観（2カラム） */}
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:14 }}>
-                    {[
-                      { label:"ソフトスキル", Icon:Sparkles, scored:scoredSoftSkills, color:C.teal, desc:"対話から見えた対人・思考スキル" },
-                      { label:"価値観",       Icon:Heart,    scored:scoredValues,     color:C.gold, desc:"大切にしていること" },
-                    ].map(section=>(
-                      <Card key={section.label} style={{ padding:20 }}>
-                        <div style={{ marginBottom:14 }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:7, color:section.color, marginBottom:4 }}>
-                            <section.Icon size={16} strokeWidth={1.8}/>
-                            <span style={{ fontSize:14, fontWeight:700 }}>{section.label}</span>
-                          </div>
-                          <div style={{ fontSize:11, color:C.muted }}>{section.desc}</div>
-                        </div>
-                        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                          {section.scored.map(({item, score}, i)=>(
-                            <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px", background:`${section.color}0D`, borderRadius:8 }}>
-                              <span style={{ color:section.color, fontWeight:700, flexShrink:0, fontSize:12, marginTop:1 }}>▸</span>
-                              <span style={{ fontSize:13, color:C.text, lineHeight:1.7, wordBreak:"keep-all", overflowWrap:"anywhere" }}>{item}</span>
-                              {maxSessions > 1 && score > 3 && <span style={{ fontSize:10, color:section.color, fontWeight:700, flexShrink:0, marginTop:2 }}>↑</span>}
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-
-                  {/* 自己PR */}
-                  <Card style={{ background:C.goldL, border:`1px solid ${C.gold}44` }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, color:C.gold }}>
-                      <PenLine size={18} strokeWidth={1.8}/>
-                      <span style={{ fontSize:15, fontWeight:700, whiteSpace:"nowrap" }}>自己PRのベース</span>
-                    </div>
-                    <p style={{ color:C.text, fontSize:14, lineHeight:2 }}>{r.selfPR}</p>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:10 }}>※このテキストをベースに仕上げてください</div>
-                  </Card>
-
-                  {/* ハードスキル */}
-                  {skillCount > 0 && (
-                    <Card>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:8, color:C.accent }}>
-                          <Wrench size={18} strokeWidth={1.8}/>
-                          <div>
-                            <span style={{ fontSize:15, fontWeight:700 }}>ハードスキル</span>
-                            <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>棚卸しで登録したスキル・経験年数</div>
-                          </div>
-                        </div>
-                        <Btn variant="secondary" onClick={()=>{ setP1step(3); setPage("phase1"); }} style={{ padding:"5px 12px", fontSize:12 }}>編集</Btn>
-                      </div>
-                      <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
-                        {SKILL_CATS.map(cat=>{
-                          const mySkills = cat.skills.filter(s=>sm[s]);
-                          if (!mySkills.length) return null;
-                          return (
-                            <div key={cat.label}>
-                              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
-                                <cat.Icon size={14} color={cat.color} strokeWidth={1.8}/>
-                                <span style={{ fontSize:12, fontWeight:700, color:cat.color }}>{cat.label}</span>
-                              </div>
-                              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                                {mySkills.map(skill=>(
-                                  <div key={skill} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", background:`${cat.color}0D`, border:`1px solid ${cat.color}33`, borderRadius:20 }}>
-                                    <span style={{ fontSize:13, color:C.text, fontWeight:500 }}>{skill}</span>
-                                    <span style={{ fontSize:10, color:cat.color, fontFamily:FM, fontWeight:600 }}>{sm[skill]}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </Card>
-                  )}
-                </div>
-              );
-            })() : (
-              <Card style={{ textAlign:"center", padding:48 }}>
-                <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
-                  <BookOpen size={48} color={C.border} strokeWidth={1}/>
-                </div>
-                <div style={{ fontSize:17, fontWeight:700, marginBottom:10 }}>キャリアノートはまだ作成されていません</div>
-                <p style={{ color:C.sub, fontSize:14, marginBottom:28, lineHeight:1.8 }}>
-                  AIコンサルタントとの対話を通じて、<br/>あなたのキャリアの軸・強み・価値観を言語化します。
-                </p>
-                {skillCount > 0 ? (
-                  <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
-                    <MessageCircle size={15}/> AI対話を始める
-                  </Btn>
-                ) : (
-                  <Btn onClick={()=>{ setP1step(1); setPage("phase1"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
-                    <ClipboardList size={15}/> スキルの棚卸しから始める
-                  </Btn>
-                )}
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* ════════════════════════════════════════════
-            タブ②：対話ログ
-        ════════════════════════════════════════════ */}
-        {activeTab === "dialogue" && (
-          <div style={{ animation:"fadeUp 0.3s ease" }}>
-            {(r?.insights||[]).length > 0 && (
-              <Card style={{ marginBottom:20 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:18, color:C.teal }}>
-                  <Lightbulb size={18} strokeWidth={1.8}/>
-                  <div>
-                    <div style={{ fontSize:15, fontWeight:700 }}>対話を通じて明確になったこと</div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>最新レポートより</div>
-                  </div>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {(r.insights||[]).map((ins,i)=>(
-                    <div key={i} style={{ padding:"14px 16px", background:C.tealL, borderRadius:12, border:`1px solid ${C.teal}22` }}>
-                      <div style={{ display:"inline-block", padding:"2px 10px", borderRadius:12, background:C.teal, color:"#fff", fontSize:11, fontWeight:700, marginBottom:8 }}>{ins.label}</div>
-                      <div style={{ fontSize:13, color:C.sub, lineHeight:1.8 }}>{ins.text}</div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-
-            {/* セッション一覧 */}
-            <Card>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:18 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, color:C.sub }}>
-                  <ScrollText size={18} strokeWidth={1.8}/>
-                  <div style={{ fontSize:15, fontWeight:700, color:C.text }}>対話セッション履歴</div>
-                </div>
-                <Btn variant="teal" onClick={()=>{ setMessages([]); setSessionDone(false); setPage("theme-select"); }} style={{ padding:"7px 14px", fontSize:12, display:"flex", alignItems:"center", gap:5, whiteSpace:"nowrap" }}>
-                  <MessageCircle size={13}/> 新しい対話
-                </Btn>
-              </div>
-
-              {(d2.sessions||[]).length === 0 ? (
-                <div style={{ textAlign:"center", padding:"32px 0", color:C.muted }}>
-                  <MessageCircle size={36} color={C.border} strokeWidth={1} style={{ display:"block", margin:"0 auto 12px" }}/>
-                  <div style={{ fontSize:14 }}>まだ対話履歴がありません</div>
-                </div>
-              ) : (
-                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                  {(d2.sessions||[]).map((session, i)=>{
-                    const t = THEMES.find(x=>x.id===session.themeId);
-                    const date = session.createdAt ? new Date(session.createdAt).toLocaleDateString("ja-JP", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "日時不明";
-                    const turns = (session.messages||[]).filter(m=>m.role==="user").length;
-                    const hasInsights = (session.insights||[]).length > 0;
-                    const isLatest = i === 0;
-                    return (
-                      <div key={session.id} style={{ padding:"16px 18px", background: isLatest ? C.accentL : C.bg, borderRadius:12, border:`1px solid ${isLatest?C.accent+"44":C.border}` }}>
-                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
-                              {isLatest && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:C.accent, color:"#fff", fontWeight:700, flexShrink:0 }}>最新</span>}
-                              {t && (
-                                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                  <t.Icon size={13} color={t.color} strokeWidth={1.8}/>
-                                  <span style={{ fontSize:13, fontWeight:700, color:t.color }}>{t.label}</span>
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ fontSize:12, color:C.sub, marginBottom:4 }}>{date}</div>
-                            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                              <span style={{ fontSize:11, color:C.muted }}>{turns}往復の対話</span>
-                              {hasInsights && <span style={{ fontSize:11, color:C.teal, fontWeight:600 }}>気づき {session.insights.length}件</span>}
-                            </div>
-                            {/* insightsプレビュー */}
-                            {hasInsights && (
-                              <div style={{ marginTop:10, display:"flex", flexWrap:"wrap", gap:6 }}>
-                                {session.insights.map((ins,j)=>(
-                                  <span key={j} style={{ fontSize:11, padding:"2px 9px", borderRadius:12, background:C.teal+"18", color:C.teal, border:`1px solid ${C.teal}33`, fontWeight:600 }}>{ins.label}</span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <button onClick={()=>{
-                            setMessages(session.messages||[]);
-                            setSelectedTheme(session.themeId||null);
-                            setCurrentSessionId(session.id);
-                            setSessionDone(true);
-                            setPage("phase2");
-                          }} style={{ flexShrink:0, display:"flex", alignItems:"center", gap:5, padding:"7px 14px", borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.sub, cursor:"pointer", fontSize:12, fontFamily:F, whiteSpace:"nowrap" }}>
-                            <MessageCircle size={12}/> 対話に戻る
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
-          </div>
-        )}
-
-        {/* ════════════════════════════════════════════
-            タブ③：職務経歴（年表）
-        ════════════════════════════════════════════ */}
-        {activeTab === "career" && (
-          <div style={{ animation:"fadeUp 0.3s ease" }}>
-            {cs.filter(c=>c.company||c.role).length > 0 ? (
-              <div>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, color:C.sub }}>
-                    <Clock size={16} strokeWidth={1.8}/>
-                    <span style={{ fontSize:13, color:C.muted }}>直近から表示</span>
-                  </div>
-                  <Btn variant="secondary" onClick={()=>{ setP1step(2); setPage("phase1"); }} style={{ padding:"6px 14px", fontSize:12 }}>編集</Btn>
-                </div>
-
-                {/* 年表 */}
-                <div style={{ position:"relative" }}>
-                  {/* 縦線 */}
-                  <div style={{ position:"absolute", left:20, top:0, bottom:0, width:2, background:`linear-gradient(to bottom, ${C.accent}, ${C.teal})`, borderRadius:2 }}/>
-
-                  <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-                    {cs.filter(c=>c.company||c.role).map((c, i, arr)=>(
-                      <div key={c.id} style={{ display:"flex", gap:0, paddingBottom: i < arr.length-1 ? 32 : 0 }}>
-                        {/* ドット */}
-                        <div style={{ position:"relative", flexShrink:0, width:42 }}>
-                          <div style={{ position:"absolute", left:12, top:16, width:18, height:18, borderRadius:"50%", background: i===0 ? C.accent : C.surface, border:`2.5px solid ${i===0?C.accent:C.teal}`, zIndex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                            {i===0 && <div style={{ width:6, height:6, borderRadius:"50%", background:"#fff" }}/>}
-                          </div>
-                        </div>
-
-                        {/* カード */}
-                        <div style={{ flex:1, background:C.surface, border:`1px solid ${i===0?C.accent+"66":C.border}`, borderRadius:14, padding:20, boxShadow: i===0 ? `0 2px 12px ${C.accent}18` : C.shadow }}>
-                          {/* 期間バッジ */}
-                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-                            {c.period && (
-                              <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: i===0?C.accentL:C.bg, color: i===0?C.accent:C.muted, fontWeight:600, fontFamily:FM, border:`1px solid ${i===0?C.accent+"44":C.border}` }}>
-                                {c.period}
-                              </span>
-                            )}
-                            {i===0 && (
-                              <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:C.greenL, color:C.green, fontWeight:700, border:`1px solid ${C.green}44` }}>
-                                現在
-                              </span>
-                            )}
-                          </div>
-
-                          {/* 会社名・役割 */}
-                          <div style={{ marginBottom:10 }}>
-                            <div style={{ fontSize:17, fontWeight:800, color:C.text, marginBottom:4 }}>{c.company||"会社名未入力"}</div>
-                            {c.role && (
-                              <div style={{ fontSize:14, fontWeight:600, color: i===0?C.accent:C.sub }}>{c.role}</div>
-                            )}
-                          </div>
-
-                          {/* 実績・業務 */}
-                          {c.achievements && (
-                            <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
-                              <div style={{ fontSize:11, fontWeight:700, color:C.muted, marginBottom:8, letterSpacing:"0.05em" }}>実績・担当業務</div>
-                              <div style={{ fontSize:13, color:C.sub, lineHeight:1.9, whiteSpace:"pre-wrap" }}>
-                                {c.achievements.split(/[。\n]/).filter(s=>s.trim()).map((sentence, j)=>(
-                                  <div key={j} style={{ display:"flex", gap:8, marginBottom:4 }}>
-                                    <span style={{ color:C.teal, flexShrink:0, fontWeight:700 }}>▸</span>
-                                    <span>{sentence.trim()}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* 年表の終点 */}
-                    <div style={{ display:"flex", gap:0 }}>
-                      <div style={{ width:42, flexShrink:0, display:"flex", justifyContent:"center" }}>
-                        <div style={{ width:10, height:10, borderRadius:"50%", background:C.border, marginTop:4 }}/>
-                      </div>
-                      <div style={{ paddingTop:4 }}>
-                        <span style={{ fontSize:12, color:C.muted }}>キャリアのスタート</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Card style={{ textAlign:"center", padding:48 }}>
-                <div style={{ display:"flex", justifyContent:"center", marginBottom:20 }}>
-                  <Building2 size={48} color={C.border} strokeWidth={1}/>
-                </div>
-                <div style={{ fontSize:17, fontWeight:700, marginBottom:10 }}>職務経歴が登録されていません</div>
-                <p style={{ color:C.sub, fontSize:14, marginBottom:28, lineHeight:1.8 }}>
-                  職歴を登録すると、ここに年表として表示されます。
-                </p>
-                <Btn onClick={()=>{ setP1step(2); setPage("phase1"); }} style={{ padding:"12px 28px", display:"inline-flex", alignItems:"center", gap:6 }}>
-                  <Building2 size={15}/> 職務経歴を入力する
-                </Btn>
-              </Card>
-            )}
-          </div>
-        )}
-
       </div>
     );
   }
 
   return null;
+}
+
+// ── SectionCard ───────────────────────────────────────────────
+function SectionCard({ title, color, items, icon }) {
+  return (
+    <div style={{ background:"#FDFCFA", border:`1px solid #E8E3DC`, borderRadius:16, padding:"20px 22px", marginBottom:14, boxShadow:"0 1px 6px rgba(0,0,0,0.06)" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+        <div style={{ width:24, height:24, borderRadius:6, background:`${color}15`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          {icon}
+        </div>
+        <span style={{ fontSize:13, fontWeight:700, color }}>{ title}</span>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {(items||[]).map((item, i) => (
+          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 14px", background:`${color}07`, borderRadius:10 }}>
+            <span style={{ color, fontWeight:700, fontSize:13, flexShrink:0, marginTop:1 }}>▸</span>
+            <span style={{ fontSize:14, color:"#1C1C1C", lineHeight:1.65, wordBreak:"keep-all" }}>{item}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
