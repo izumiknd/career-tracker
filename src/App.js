@@ -255,22 +255,26 @@ ${answersText}
     const r = result || savedResult?.result;
     const context = r ? `フェーズ①の結果：強み「${(r.strengths||[]).join("・")}」、価値観「${(r.values||[]).join("・")}」、向かいたい方向「${(r.wants||[]).join("・")}」` : "";
 
-    const sys = `あなたはキャリアの自己理解を助けるコーチです。
-クライアントはすでに簡単な自己分析（フェーズ①）を終えています。
+    const sys = `あなたはキャリアコンサルタントです。クライアントと話しています。
+
+【話し方のルール】
+・質問は短く・シンプルに。一文で終わらせる
+・「〜ということでしょうか」「〜はどのように影響しますか」のような回りくどい言い方はしない
+・カタカナの専門用語（ダイナミクス、モチベーション、スキルセット等）は使わない
+・「なぜ」は使わない。「どんな場面で」「どう感じましたか」を使う
+・アドバイスはしない。聞くことに徹する
+・相手の言葉をそのまま使って受け取る（例：「〇〇だったんですね。」）
+・必ず疑問文で終わる
+・1回の返答は2〜3文まで
+
+【良い質問の例】
+・「日々の仕事で一番手応えを感じる場面はどんなときですか？」
+・「そのとき、どんな気持ちでしたか？」
+・「周りから「ありがとう」と言われるのはどんな場面が多いですか？」
+・「それをやっているとき、何が楽しいと感じますか？」
+
 ${context}
-
-あなたの役割は、1問ずつ対話を通じてこの人の理解をさらに深めることです。
-
-ルール：
-- 1回に質問は1つだけ
-- 話し言葉で自然に、2〜3文まで
-- 相手の言葉をそのまま使って受け取る（ミラーリング）
-- アドバイスは絶対にしない。傾聴に徹する
-- 「なぜ」は使わない。「どんな場面で」「そのとき何を感じましたか」を使う
-- 必ず疑問文で終わる
-- 4〜6往復で自然にまとめに入る
-
-最初の一言：フェーズ①の結果に触れながら、「もう少し聞かせてください」という雰囲気で1問だけ質問してください。`;
+4〜6往復で自然にまとめに入る。`;
 
     try {
       const firstMsg = await callAIStream_p2(
@@ -300,8 +304,9 @@ ${context}
       ? "\n\n【重要】そろそろ対話をまとめてください。これまでの会話で見えてきたことを1〜2文でフィードバックし、「ここまでの対話をもとに整理できます」と自然に伝えてください。"
       : "";
 
-    const sys = `あなたはキャリアの自己理解を助けるコーチです。${context}
-ルール：1回に質問1つ・話し言葉・2〜3文・ミラーリング・アドバイスなし・必ず疑問文で終わる${endHint}`;
+    const sys = `あなたはキャリアコンサルタントです。
+${context}
+【ルール】質問は短く・一文・疑問文で終わる・カタカナ専門用語使わない（ダイナミクス・モチベーション等NG）・アドバイスしない・相手の言葉をそのまま使う・2〜3文まで${endHint}`;
 
     try {
       let finalContent = "";
@@ -472,12 +477,12 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
       <div style={{ maxWidth:560, margin:"0 auto", padding:"0 24px 48px" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           {[
-            { Icon:Zap,           text:"3問に答えるだけ。職歴の入力不要" },
-            { Icon:Brain,         text:"AIがあなたの言葉から強みを読み取る" },
-            { Icon:PenLine,       text:"「言語化できた感」が得られる" },
+            { Icon:Zap,     color:"#E8960C", text:"3問に答えるだけ。職歴の入力不要" },
+            { Icon:Brain,   color:"#7B2FBE", text:"AIがあなたの言葉から強みを読み取る" },
+            { Icon:PenLine, color:"#4361EE", text:"「言語化できた感」が得られる" },
           ].map((item, i) => (
             <div key={i} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 18px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
-              <item.Icon size={20} color={C.accentM} strokeWidth={1.8} style={{ flexShrink:0 }}/>
+              <item.Icon size={20} color={item.color} strokeWidth={1.8} style={{ flexShrink:0 }}/>
               <span style={{ fontSize:14, color:C.sub, lineHeight:1.6 }}>{item.text}</span>
             </div>
           ))}
@@ -680,7 +685,7 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
         {/* ヘッダー */}
         <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow, flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <button onClick={()=>setPage("result")} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4, display:"flex", alignItems:"center" }}>
+            <button onClick={()=>setPage("mypage")} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4, display:"flex", alignItems:"center" }}>
               <ArrowLeft size={20}/>
             </button>
             <div>
@@ -710,7 +715,7 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
               const r = result || savedResult?.result;
               return (
                 <div style={{ padding:"14px 16px", background:C.accentL, borderRadius:12, border:`1px solid ${C.accentM}33`, marginBottom:4 }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:C.accent, marginBottom:8, letterSpacing:"0.06em" }}>フェーズ①の結果</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:C.accent, marginBottom:8, letterSpacing:"0.06em" }}>STEP 1 の結果</div>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                     {[...(r.strengths||[]).slice(0,2), ...(r.values||[]).slice(0,1)].map((item,i)=>(
                       <span key={i} style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:C.surface, border:`1px solid ${C.border}`, color:C.sub }}>{item}</span>
@@ -723,9 +728,19 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
             {p2messages.map((msg, i) => (
               <div key={i} style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:8, alignItems:"flex-end" }}>
                 {msg.role === "assistant" && (
-                  <div style={{ width:30, height:30, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" fill="white"/><path d="M2 14C2 11.2 4.7 9 8 9S14 11.2 14 14" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                  </div>
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ flexShrink:0 }}>
+                    <circle cx="16" cy="16" r="16" fill={C.accentL}/>
+                    <ellipse cx="16" cy="13" rx="5.5" ry="6" fill="#F5D9C8"/>
+                    <ellipse cx="16" cy="8.5" rx="5.8" ry="3.5" fill="#5C4033"/>
+                    <ellipse cx="10.8" cy="11.5" rx="1.6" ry="3" fill="#5C4033"/>
+                    <ellipse cx="21.2" cy="11.5" rx="1.6" ry="3" fill="#5C4033"/>
+                    <ellipse cx="13.8" cy="13" rx="0.8" ry="0.9" fill="#2C2825"/>
+                    <ellipse cx="18.2" cy="13" rx="0.8" ry="0.9" fill="#2C2825"/>
+                    <path d="M14.2 15.5 Q16 16.5 17.8 15.5" stroke="#C08070" strokeWidth="0.8" strokeLinecap="round" fill="none"/>
+                    <rect x="14.5" y="18.5" width="3" height="2" rx="1" fill="#F5D9C8"/>
+                    <path d="M7 32 Q7 24 16 22 Q25 24 25 32" fill={C.accent}/>
+                    <path d="M14.5 22 L13 25.5 L16 24 L19 25.5 L17.5 22" fill="#FDFCFA"/>
+                  </svg>
                 )}
                 <div style={{
                   maxWidth:"80%", padding:"12px 14px",
@@ -746,9 +761,19 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
 
             {p2typing && p2messages[p2messages.length-1]?.content==="" && (
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-                <div style={{ width:30, height:30, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" fill="white"/><path d="M2 14C2 11.2 4.7 9 8 9S14 11.2 14 14" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                </div>
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ flexShrink:0 }}>
+                  <circle cx="16" cy="16" r="16" fill={C.accentL}/>
+                  <ellipse cx="16" cy="13" rx="5.5" ry="6" fill="#F5D9C8"/>
+                  <ellipse cx="16" cy="8.5" rx="5.8" ry="3.5" fill="#5C4033"/>
+                  <ellipse cx="10.8" cy="11.5" rx="1.6" ry="3" fill="#5C4033"/>
+                  <ellipse cx="21.2" cy="11.5" rx="1.6" ry="3" fill="#5C4033"/>
+                  <ellipse cx="13.8" cy="13" rx="0.8" ry="0.9" fill="#2C2825"/>
+                  <ellipse cx="18.2" cy="13" rx="0.8" ry="0.9" fill="#2C2825"/>
+                  <path d="M14.2 15.5 Q16 16.5 17.8 15.5" stroke="#C08070" strokeWidth="0.8" strokeLinecap="round" fill="none"/>
+                  <rect x="14.5" y="18.5" width="3" height="2" rx="1" fill="#F5D9C8"/>
+                  <path d="M7 32 Q7 24 16 22 Q25 24 25 32" fill={C.accent}/>
+                  <path d="M14.5 22 L13 25.5 L16 24 L19 25.5 L17.5 22" fill="#FDFCFA"/>
+                </svg>
                 <div style={{ padding:"12px 16px", borderRadius:"14px 14px 14px 4px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", gap:4, alignItems:"center" }}>
                   {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
                 </div>
@@ -990,20 +1015,41 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession }) {
   const [tab, setTab] = useState("note");
   const [showCareerForm, setShowCareerForm] = useState(false);
   const [showThemeSelect, setShowThemeSelect] = useState(false);
+  const [editingSkills, setEditingSkills] = useState(false);
+  const [freeSkillInput, setFreeSkillInput] = useState("");
   const [careers, setCareers] = useState(data.careers || []);
-  const [skillMap, setSkillMap] = useState(data.skillMap || {}); // {skillName: years}
-  const [newCareer, setNewCareer] = useState({ company:"", period:"", role:"", notes:"" });
+  const [skillMap, setSkillMap] = useState(data.skillMap || {});
+  const [newCareer, setNewCareer] = useState({ company:"", fromY:"", fromM:"", toY:"", toM:"", current:false, role:"", notes:"" });
 
   const sessions = data.sessions || [];
   const latest = data.latestP2 || sessions[0]?.p2result || null;
 
   const addCareer = () => {
     if (!newCareer.company && !newCareer.role) return;
-    const updated = [...careers, { ...newCareer, id: Date.now().toString() }];
+    const from = newCareer.fromY ? `${newCareer.fromY}年${newCareer.fromM||""}月` : "";
+    const to = newCareer.current ? "現在" : (newCareer.toY ? `${newCareer.toY}年${newCareer.toM||""}月` : "");
+    const period = from && to ? `${from} 〜 ${to}` : from || to;
+    const updated = [...careers, { ...newCareer, period, id: Date.now().toString() }];
     setCareers(updated);
-    setNewCareer({ company:"", period:"", role:"", notes:"" });
+    setNewCareer({ company:"", fromY:"", fromM:"", toY:"", toM:"", current:false, role:"", notes:"" });
+    setShowCareerForm(false);
     const existing = load() || {};
     save({ ...existing, careers: updated });
+  };
+
+  const addFreeSkill = () => {
+    if (!freeSkillInput.trim()) return;
+    const updated = { ...skillMap, [freeSkillInput.trim()]: "1〜3年" };
+    setSkillMap(updated);
+    setFreeSkillInput("");
+    const existing = load() || {};
+    save({ ...existing, skillMap: updated });
+  };
+
+  const saveSkills = () => {
+    setEditingSkills(false);
+    const existing = load() || {};
+    save({ ...existing, skillMap });
   };
 
   const removeCareer = (id) => {
@@ -1243,34 +1289,35 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession }) {
 
             {/* 職歴 */}
             <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"20px", boxShadow:C.shadow }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
                 <div style={{ fontSize:15, fontWeight:700, color:C.text }}>職歴</div>
                 <button onClick={()=>setShowCareerForm(f=>!f)}
                   style={{ padding:"5px 12px", background:C.accentL, border:`1px solid ${C.accentM}44`, borderRadius:8, color:C.accent, cursor:"pointer", fontSize:12, fontWeight:600 }}>
-                  {showCareerForm?"閉じる":"+ 追加"}
+                  {showCareerForm ? "閉じる" : "+ 追加"}
                 </button>
               </div>
+              <div style={{ fontSize:11, color:C.muted, marginBottom:16 }}>直近の職歴から順に入力してください</div>
 
               {/* 年表 */}
               {careers.length > 0 && (
-                <div style={{ position:"relative", marginBottom:showCareerForm?20:0 }}>
+                <div style={{ position:"relative", marginBottom:showCareerForm ? 20 : 0 }}>
                   <div style={{ position:"absolute", left:10, top:0, bottom:0, width:2, background:`linear-gradient(to bottom,${C.accent},${C.accentM})`, borderRadius:2 }}/>
                   <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
                     {careers.map((c, i) => (
-                      <div key={c.id} style={{ display:"flex", gap:0, paddingBottom: i<careers.length-1?20:0 }}>
+                      <div key={c.id} style={{ display:"flex", gap:0, paddingBottom: i<careers.length-1 ? 20 : 0 }}>
                         <div style={{ width:24, flexShrink:0, display:"flex", justifyContent:"center", paddingTop:14 }}>
                           <div style={{ width:14, height:14, borderRadius:"50%", background:i===0?C.accent:C.surface, border:`2px solid ${i===0?C.accent:C.accentM}`, zIndex:1 }}/>
                         </div>
                         <div style={{ flex:1, background:i===0?C.accentL:C.bg, border:`1px solid ${i===0?C.accentM+"44":C.border}`, borderRadius:12, padding:"12px 14px" }}>
                           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                            <div>
+                            <div style={{ flex:1, minWidth:0 }}>
                               <div style={{ fontWeight:700, fontSize:14, color:C.text }}>{c.company}</div>
                               {c.period && <div style={{ fontSize:11, color:C.muted, fontFamily:FM, marginTop:2 }}>{c.period}</div>}
                               {c.role && <div style={{ fontSize:13, color:C.sub, marginTop:4, fontWeight:500 }}>{c.role}</div>}
                               {c.notes && <div style={{ fontSize:12, color:C.muted, marginTop:6, lineHeight:1.6 }}>{c.notes}</div>}
                             </div>
                             <button onClick={()=>removeCareer(c.id)}
-                              style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:16, padding:4, flexShrink:0 }}>×</button>
+                              style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:16, padding:4, flexShrink:0, marginLeft:8 }}>×</button>
                           </div>
                         </div>
                       </div>
@@ -1281,20 +1328,33 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession }) {
 
               {/* 職歴追加フォーム */}
               {showCareerForm && (
-                <div style={{ background:C.bg, borderRadius:12, padding:"16px", border:`1px solid ${C.border}`, display:"flex", flexDirection:"column", gap:10 }}>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                    <div>
-                      <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:4 }}>会社名</label>
-                      <input value={newCareer.company} onChange={e=>setNewCareer(p=>({...p,company:e.target.value}))} placeholder="株式会社〇〇" style={IS}/>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:4 }}>在籍期間</label>
-                      <input value={newCareer.period} onChange={e=>setNewCareer(p=>({...p,period:e.target.value}))} placeholder="2020〜2023" style={IS}/>
+                <div style={{ background:C.bg, borderRadius:12, padding:"16px", border:`1px solid ${C.border}`, display:"flex", flexDirection:"column", gap:12 }}>
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:4 }}>会社名</label>
+                    <input value={newCareer.company} onChange={e=>setNewCareer(p=>({...p,company:e.target.value}))} placeholder="株式会社〇〇" style={IS}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:6 }}>在籍期間</label>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                      <input value={newCareer.fromY} onChange={e=>setNewCareer(p=>({...p,fromY:e.target.value}))} placeholder="2020" style={{...IS, width:72}} maxLength={4}/>
+                      <span style={{ color:C.muted, fontSize:13 }}>年</span>
+                      <input value={newCareer.fromM} onChange={e=>setNewCareer(p=>({...p,fromM:e.target.value}))} placeholder="4" style={{...IS, width:52}} maxLength={2}/>
+                      <span style={{ color:C.muted, fontSize:13 }}>月 〜</span>
+                      {!newCareer.current && <>
+                        <input value={newCareer.toY} onChange={e=>setNewCareer(p=>({...p,toY:e.target.value}))} placeholder="2023" style={{...IS, width:72}} maxLength={4}/>
+                        <span style={{ color:C.muted, fontSize:13 }}>年</span>
+                        <input value={newCareer.toM} onChange={e=>setNewCareer(p=>({...p,toM:e.target.value}))} placeholder="3" style={{...IS, width:52}} maxLength={2}/>
+                        <span style={{ color:C.muted, fontSize:13 }}>月</span>
+                      </>}
+                      <label style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer", fontSize:13, color:C.sub }}>
+                        <input type="checkbox" checked={newCareer.current} onChange={e=>setNewCareer(p=>({...p,current:e.target.checked}))}/>
+                        現在
+                      </label>
                     </div>
                   </div>
                   <div>
                     <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:4 }}>職種・役割</label>
-                    <input value={newCareer.role} onChange={e=>setNewCareer(p=>({...p,role:e.target.value}))} placeholder="営業マネージャー" style={IS}/>
+                    <input value={newCareer.role} onChange={e=>setNewCareer(p=>({...p,role:e.target.value}))} placeholder="例：営業マネージャー" style={IS}/>
                   </div>
                   <div>
                     <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:4 }}>メモ（実績・担当業務）</label>
@@ -1306,11 +1366,8 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession }) {
                   </button>
                 </div>
               )}
-
               {careers.length === 0 && !showCareerForm && (
-                <div style={{ textAlign:"center", padding:"20px 0", color:C.muted, fontSize:13 }}>
-                  職歴を追加してください
-                </div>
+                <div style={{ textAlign:"center", padding:"16px 0", color:C.muted, fontSize:13 }}>職歴を追加してください</div>
               )}
             </div>
 
@@ -1318,34 +1375,84 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession }) {
             <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"20px", boxShadow:C.shadow }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                 <div style={{ fontSize:15, fontWeight:700, color:C.text }}>スキル</div>
-                <span style={{ fontSize:12, color:C.muted, fontFamily:FM }}>{Object.keys(skillMap).length}個選択中</span>
+                {editingSkills ? (
+                  <button onClick={saveSkills}
+                    style={{ padding:"5px 14px", background:C.accent, border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700 }}>
+                    保存する
+                  </button>
+                ) : (
+                  <button onClick={()=>setEditingSkills(true)}
+                    style={{ padding:"5px 12px", background:C.accentL, border:`1px solid ${C.accentM}44`, borderRadius:8, color:C.accent, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                    編集する
+                  </button>
+                )}
               </div>
-              {SKILL_CATS_MP.map(cat=>(
-                <div key={cat.label} style={{ marginBottom:18 }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:cat.color, marginBottom:8, letterSpacing:"0.04em" }}>{cat.label}</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                    {cat.skills.map(skill=>{
-                      const sel = !!skillMap[skill];
-                      return (
-                        <div key={skill} style={{ border:`1.5px solid ${sel?cat.color:C.border}`, background:sel?`${cat.color}08`:C.bg, borderRadius:10, padding:"8px 12px", transition:"all 0.15s" }}>
-                          <div onClick={()=>toggleSkill(skill)} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", marginBottom:sel?8:0 }}>
-                            <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${sel?cat.color:C.border}`, background:sel?cat.color:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#fff", flexShrink:0 }}>
-                              {sel && "✓"}
-                            </div>
-                            <span style={{ fontSize:13, color:sel?C.text:C.sub }}>{skill}</span>
-                          </div>
-                          {sel && (
-                            <select value={skillMap[skill]} onChange={e=>setYears(skill,e.target.value)}
-                              style={{ width:"100%", padding:"4px 8px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, fontSize:12, color:C.sub, fontFamily:FM, outline:"none", cursor:"pointer" }}>
-                              {YEAR_OPTS.map(y=><option key={y} value={y}>{y}</option>)}
-                            </select>
-                          )}
-                        </div>
-                      );
-                    })}
+
+              {/* 通常表示：登録済みスキルタグ */}
+              {!editingSkills && (
+                Object.keys(skillMap).length > 0 ? (
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                    {Object.entries(skillMap).map(([skill, years])=>(
+                      <div key={skill} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", background:C.accentL, border:`1px solid ${C.accentM}33`, borderRadius:20 }}>
+                        <span style={{ fontSize:13, color:C.text }}>{skill}</span>
+                        <span style={{ fontSize:11, color:C.accent, fontFamily:FM }}>{years}</span>
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"16px 0" }}>
+                    「編集する」を押してスキルを登録してください
+                  </div>
+                )
+              )}
+
+              {/* 編集モード：カテゴリ選択 + フリー入力 */}
+              {editingSkills && (
+                <div>
+                  {/* フリー入力 */}
+                  <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+                    <input value={freeSkillInput} onChange={e=>setFreeSkillInput(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&addFreeSkill()}
+                      placeholder="スキルを自由入力（例：Python、簿記2級）"
+                      style={{...IS, flex:1, fontSize:13}}/>
+                    <button onClick={addFreeSkill}
+                      style={{ padding:"8px 14px", background:C.accent, color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
+                      追加
+                    </button>
+                  </div>
+                  {/* カテゴリ選択 */}
+                  {SKILL_CATS_MP.map(cat=>(
+                    <div key={cat.label} style={{ marginBottom:18 }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:cat.color, marginBottom:8, letterSpacing:"0.04em" }}>{cat.label}</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                        {cat.skills.map(skill=>{
+                          const sel = !!skillMap[skill];
+                          return (
+                            <div key={skill} style={{ border:`1.5px solid ${sel?cat.color:C.border}`, background:sel?`${cat.color}08`:C.bg, borderRadius:10, padding:"8px 12px", transition:"all 0.15s" }}>
+                              <div onClick={()=>toggleSkill(skill)} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", marginBottom:sel?8:0 }}>
+                                <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${sel?cat.color:C.border}`, background:sel?cat.color:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#fff", flexShrink:0 }}>
+                                  {sel && "✓"}
+                                </div>
+                                <span style={{ fontSize:13, color:sel?C.text:C.sub }}>{skill}</span>
+                              </div>
+                              {sel && (
+                                <select value={skillMap[skill]} onChange={e=>setYears(skill,e.target.value)}
+                                  style={{ width:"100%", padding:"4px 8px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, fontSize:12, color:C.sub, fontFamily:FM, outline:"none", cursor:"pointer" }}>
+                                  {YEAR_OPTS.map(y=><option key={y} value={y}>{y}</option>)}
+                                </select>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={saveSkills}
+                    style={{ width:"100%", padding:"12px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", marginTop:8 }}>
+                    保存する
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
