@@ -31,12 +31,7 @@ async function callAIJSON(messages) {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      messages,
-      temperature: 0.5,
-      max_tokens: 800,
-    }),
+    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages, temperature: 0.5, max_tokens: 800 }),
   });
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e?.error?.message || res.statusText); }
   const data = await res.json();
@@ -49,6 +44,32 @@ async function callAIJSON(messages) {
   }
   if (start === -1 || end === -1) throw new Error("JSONが取得できませんでした");
   return JSON.parse(text.slice(start, end + 1));
+}
+
+async function callAIStream_p2(messages, onChunk) {
+  const apiKey = process.env.REACT_APP_GROQ_API_KEY;
+  if (!apiKey) throw new Error("APIキーが未設定です");
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages, temperature: 0.6, max_tokens: 300, stream: true }),
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e?.error?.message || res.statusText); }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const lines = decoder.decode(value).split("\n").filter(l => l.startsWith("data: ") && !l.includes("[DONE]"));
+    for (const line of lines) {
+      try {
+        const delta = JSON.parse(line.slice(6)).choices?.[0]?.delta?.content || "";
+        if (delta) { full += delta; onChunk(full); }
+      } catch {}
+    }
+  }
+  return full;
 }
 
 // ── 3つの質問 ─────────────────────────────────────────────────
@@ -99,14 +120,22 @@ const QUESTIONS = [
 
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
-  const [page, setPage]       = useState("home");       // home | quiz | loading | result
-  const [step, setStep]       = useState(0);            // 0-2
-  const [answers, setAnswers] = useState([]);           // {q, a, free?}
+  const [page, setPage]       = useState("home");       // home | quiz | loading | result | p2_intro | p2_chat | p2_loading | p2_result
+  const [step, setStep]       = useState(0);
+  const [answers, setAnswers] = useState([]);
   const [freeText, setFreeText] = useState("");
   const [showFree, setShowFree] = useState(false);
   const [result, setResult]   = useState(null);
   const [loading, setLoading] = useState(false);
   const [savedResult, setSavedResult] = useState(null);
+
+  // Phase2 state
+  const [p2messages, setP2messages]   = useState([]); // {role, content}
+  const [p2input, setP2input]         = useState("");
+  const [p2typing, setP2typing]       = useState(false);
+  const [p2done, setP2done]           = useState(false);
+  const [p2result, setP2result]       = useState(null);
+  const [p2turn, setP2turn]           = useState(0);
 
   useEffect(() => {
     const d = load();
@@ -161,22 +190,38 @@ export default function App() {
     setLoading(true);
     try {
       const answersText = finalAnswers.map(a => `Q: ${a.q}\nA: ${a.a}`).join("\n\n");
-      const prompt = `以下は自己理解のための3つの質問への回答です。
-回答者のことを深く読み取り、JSONのみで返答してください（説明文・コードブロック不要）。
+      const prompt = `以下は自己理解のための質問への回答です。JSONのみで返答してください（説明文・コードブロック不要）。
 
 回答:
 ${answersText}
 
 以下のJSON形式のみで返答:
-{"strengths":["強み1（10〜20文字）","強み2","強み3"],"values":["価値観1（10〜20文字）","価値観2","価値観3"],"wants":["やりたいこと1（15〜25文字）","やりたいこと2"],"message":"回答者へのメッセージ（2〜3文。あなたの言葉で、温かく、具体的に）","keyword":"この人を一言で表すキーワード（5〜10文字）"}
+{"strengths":["強み1","強み2","強み3"],"values":["価値観1","価値観2","価値観3"],"wants":["やりたいこと1","やりたいこと2"],"message":"メッセージ","keyword":"キーワード"}
 
-ルール:
-- strengths：回答から見えた「行動・思考・姿勢」の具体的な強み。3個
-- values：大切にしていること・譲れないもの。3個
-- wants：この人が向かいたい方向・やりたいこと。2個
-- message：「あなたは〜」で始まる、温かみのある2〜3文
-- keyword：この人の本質を一言で表す言葉（例：「人を動かす力」「静かな情熱」）
-- すべて日本語で、具体的に、冗長にならずに`;
+【厳守ルール】
+1. MECE（重複なし・漏れなし）を徹底すること
+   - 同じ概念を言い方を変えて繰り返さない（例：「効率性の追求」と「効率化へのこだわり」はNG）
+   - 各カテゴリ内の項目は互いに異なる角度の内容にすること
+   - strengths・values・wantsの間でも内容が重複しないこと
+
+2. strengths（強み）：3個
+   - 「何ができるか」「どう行動するか」という具体的な能力・行動特性
+   - 例：「相手の話を整理して本質を引き出す力」「完成度にこだわり最後まで仕上げる粘り強さ」
+   - NG：抽象的すぎる表現（「コミュニケーション能力」「真面目さ」）
+
+3. values（価値観）：3個
+   - 「何を大切にしているか」という判断基準・優先順位
+   - 例：「人が安心して相談できる関係」「手を抜かず誠実に向き合うこと」
+   - NG：行動の結果（強みと重複）、目標（やりたいことと重複）
+
+4. wants（やりたいこと）：2個
+   - 「どこに向かいたいか」という方向性・志向
+   - 例：「チームが自然とまとまる環境をつくる」「専門性を深めて頼られる存在になる」
+   - NG：抽象的すぎる表現（「成長したい」「貢献したい」）
+
+5. message：「あなたは〜」で始まる2文。回答内容を踏まえた具体的な言葉で
+6. keyword：5〜10文字。この人の本質を表す一言（例：「静かな推進力」「人を活かす目」）
+7. すべて日本語。各項目は15〜30文字程度`;
 
       const res = await callAIJSON([{ role: "user", content: prompt }]);
       setResult(res);
@@ -191,13 +236,123 @@ ${answersText}
     setLoading(false);
   };
 
+  // ── Phase2 ロジック ────────────────────────────────────────
+  const startPhase2 = async () => {
+    setP2messages([]);
+    setP2turn(0);
+    setP2done(false);
+    setP2result(null);
+    setPage("p2_chat");
+    setP2typing(true);
+
+    const r = result || savedResult?.result;
+    const context = r ? `フェーズ①の結果：強み「${(r.strengths||[]).join("・")}」、価値観「${(r.values||[]).join("・")}」、向かいたい方向「${(r.wants||[]).join("・")}」` : "";
+
+    const sys = `あなたはキャリアの自己理解を助けるコーチです。
+クライアントはすでに簡単な自己分析（フェーズ①）を終えています。
+${context}
+
+あなたの役割は、1問ずつ対話を通じてこの人の理解をさらに深めることです。
+
+ルール：
+- 1回に質問は1つだけ
+- 話し言葉で自然に、2〜3文まで
+- 相手の言葉をそのまま使って受け取る（ミラーリング）
+- アドバイスは絶対にしない。傾聴に徹する
+- 「なぜ」は使わない。「どんな場面で」「そのとき何を感じましたか」を使う
+- 必ず疑問文で終わる
+- 4〜6往復で自然にまとめに入る
+
+最初の一言：フェーズ①の結果に触れながら、「もう少し聞かせてください」という雰囲気で1問だけ質問してください。`;
+
+    try {
+      const firstMsg = await callAIStream_p2(
+        [{ role:"system", content:sys }, { role:"user", content:"お願いします。" }],
+        (partial) => setP2messages([{ role:"assistant", content:partial }])
+      );
+      setP2messages([{ role:"assistant", content:firstMsg }]);
+    } catch {
+      setP2messages([{ role:"assistant", content:"申し訳ありません。もう一度試してください。" }]);
+    }
+    setP2typing(false);
+  };
+
+  const sendP2Message = async () => {
+    if (!p2input.trim() || p2typing) return;
+    const userMsg = { role:"user", content:p2input.trim() };
+    const newMsgs = [...p2messages, userMsg];
+    const newTurn = p2turn + 1;
+    setP2messages([...newMsgs, { role:"assistant", content:"" }]);
+    setP2input("");
+    setP2typing(true);
+    setP2turn(newTurn);
+
+    const r = result || savedResult?.result;
+    const context = r ? `フェーズ①の結果：強み「${(r.strengths||[]).join("・")}」、価値観「${(r.values||[]).join("・")}」` : "";
+    const endHint = newTurn >= 5
+      ? "\n\n【重要】そろそろ対話をまとめてください。これまでの会話で見えてきたことを1〜2文でフィードバックし、「ここまでの対話をもとに整理できます」と自然に伝えてください。"
+      : "";
+
+    const sys = `あなたはキャリアの自己理解を助けるコーチです。${context}
+ルール：1回に質問1つ・話し言葉・2〜3文・ミラーリング・アドバイスなし・必ず疑問文で終わる${endHint}`;
+
+    try {
+      let finalContent = "";
+      await callAIStream_p2(
+        [{ role:"system", content:sys }, ...newMsgs],
+        (partial) => {
+          finalContent = partial;
+          setP2messages([...newMsgs, { role:"assistant", content:partial }]);
+        }
+      );
+      if (newTurn >= 5) setP2done(true);
+    } catch {
+      setP2messages([...newMsgs, { role:"assistant", content:"エラーが発生しました。もう一度送信してください。" }]);
+    }
+    setP2typing(false);
+  };
+
+  const generateP2Result = async () => {
+    setPage("p2_loading");
+    try {
+      const conv = p2messages.map(m=>`${m.role==="user"?"あなた":"コーチ"}: ${m.content}`).join("\n");
+      const r1 = result || savedResult?.result;
+      const base = r1 ? `フェーズ①結果：強み「${(r1.strengths||[]).join("・")}」、価値観「${(r1.values||[]).join("・")}」、向かいたい方向「${(r1.wants||[]).join("・")}」` : "";
+
+      const prompt = `以下はキャリア自己理解の深掘り対話です。JSONのみで返答してください。
+
+${base}
+
+対話記録:
+${conv}
+
+以下のJSON形式のみで返答:
+{"strengths":["強み1","強み2","強み3"],"values":["価値観1","価値観2","価値観3"],"wants":["やりたいこと1","やりたいこと2"],"axis":"キャリアの軸（2〜3文。この人の本質的な方向性）","selfpr":"自己PR文のベース（100文字程度）","action":"まず明日できる小さな一歩（1文）","message":"この人への応援メッセージ（2文）","keyword":"この人を表す一言（5〜10文字）"}
+
+【厳守】MECE：各カテゴリ内で重複なし、カテゴリ間でも重複なし。具体的に。抽象的NG。`;
+
+      const res = await callAIJSON([{ role:"user", content:prompt }]);
+      setP2result(res);
+      const saveData = {
+        result: savedResult?.result || result,
+        p2result: res,
+        p2messages,
+        answers: savedResult?.answers || answers,
+        createdAt: savedResult?.createdAt || new Date().toISOString(),
+        p2createdAt: new Date().toISOString(),
+      };
+      save(saveData);
+      setSavedResult(saveData);
+      setPage("p2_result");
+    } catch(e) {
+      alert("エラーが発生しました: " + e.message);
+      setPage("p2_chat");
+    }
+  };
+
   const restart = () => {
-    setStep(0);
-    setAnswers([]);
-    setFreeText("");
-    setShowFree(false);
-    setResult(null);
-    setPage("quiz");
+    setStep(0); setAnswers([]); setFreeText(""); setShowFree(false);
+    setResult(null); setPage("quiz");
   };
 
   // ── GLOBAL STYLES ─────────────────────────────────────────
@@ -448,9 +603,9 @@ ${answersText}
                 style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
                 もう一度やってみる
               </button>
-              <button onClick={()=>alert("フェーズ②は近日公開予定です！")}
+              <button onClick={startPhase2}
                 style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.accent}`, borderRadius:12, fontSize:14, fontWeight:600, color:C.accent, cursor:"pointer" }}>
-                AI対話でもっと深掘りする →
+                AIと対話してもっと深掘りする →
               </button>
             </div>
           </div>
@@ -473,6 +628,214 @@ ${answersText}
             </div>
           </details>
 
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // PHASE 2 CHAT
+  // ══════════════════════════════════════════════════════════
+  if (page === "p2_chat") {
+    const chatEndRef = { current: null };
+    return (
+      <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column" }}>
+        <GlobalStyles/>
+        {/* ヘッダー */}
+        <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow, flexShrink:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <button onClick={()=>setPage("result")} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4, display:"flex" }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:C.accent }}>STEP 2 · 深掘り対話</div>
+              <div style={{ fontSize:11, color:C.muted }}>{p2turn}/6 往復</div>
+            </div>
+          </div>
+          {p2done && (
+            <button onClick={generateP2Result}
+              style={{ padding:"6px 14px", background:C.accent, color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+              まとめる →
+            </button>
+          )}
+        </nav>
+
+        {/* プログレス */}
+        <div style={{ background:C.border, height:3 }}>
+          <div style={{ width:`${Math.min(100, (p2turn/6)*100)}%`, height:"100%", background:`linear-gradient(90deg,${C.accent},${C.accentM})`, transition:"width 0.5s ease" }}/>
+        </div>
+
+        {/* チャットエリア */}
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"20px 16px 12px" }}>
+          <div style={{ maxWidth:520, margin:"0 auto", display:"flex", flexDirection:"column", gap:14 }}>
+
+            {/* フェーズ①結果の要約 */}
+            {(result || savedResult?.result) && (() => {
+              const r = result || savedResult?.result;
+              return (
+                <div style={{ padding:"14px 16px", background:C.accentL, borderRadius:12, border:`1px solid ${C.accentM}33`, marginBottom:4 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:C.accent, marginBottom:8, letterSpacing:"0.06em" }}>フェーズ①の結果</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {[...(r.strengths||[]).slice(0,2), ...(r.values||[]).slice(0,1)].map((item,i)=>(
+                      <span key={i} style={{ fontSize:12, padding:"3px 10px", borderRadius:20, background:C.surface, border:`1px solid ${C.border}`, color:C.sub }}>{item}</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {p2messages.map((msg, i) => (
+              <div key={i} style={{ display:"flex", flexDirection:msg.role==="user"?"row-reverse":"row", gap:8, alignItems:"flex-end" }}>
+                {msg.role === "assistant" && (
+                  <div style={{ width:30, height:30, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" fill="white"/><path d="M2 14C2 11.2 4.7 9 8 9S14 11.2 14 14" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  </div>
+                )}
+                <div style={{
+                  maxWidth:"80%", padding:"12px 14px",
+                  borderRadius: msg.role==="user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                  background: msg.role==="user" ? C.accent : C.surface,
+                  color: msg.role==="user" ? "#fff" : C.text,
+                  fontSize:14, lineHeight:1.8, boxShadow:C.shadow,
+                  border: msg.role==="user" ? "none" : `1px solid ${C.border}`,
+                  whiteSpace:"pre-wrap",
+                }}>
+                  {msg.content}
+                  {msg.role==="assistant" && p2typing && i===p2messages.length-1 && msg.content && (
+                    <span style={{ display:"inline-block", width:2, height:13, background:C.accent, marginLeft:2, animation:"blink 0.8s infinite", verticalAlign:"middle" }}/>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {p2typing && p2messages[p2messages.length-1]?.content==="" && (
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+                <div style={{ width:30, height:30, borderRadius:"50%", background:C.accent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" fill="white"/><path d="M2 14C2 11.2 4.7 9 8 9S14 11.2 14 14" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                </div>
+                <div style={{ padding:"12px 16px", borderRadius:"14px 14px 14px 4px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", gap:4, alignItems:"center" }}>
+                  {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
+                </div>
+              </div>
+            )}
+
+            {p2done && (
+              <div style={{ background:`linear-gradient(135deg,${C.accentL},#F0F8F4)`, border:`1px solid ${C.accentM}44`, borderRadius:14, padding:"18px 20px", textAlign:"center" }}>
+                <div style={{ fontSize:14, fontWeight:600, color:C.accent, marginBottom:10 }}>対話が十分になりました</div>
+                <button onClick={generateP2Result}
+                  style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
+                  結果をまとめる →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 入力エリア */}
+        {!p2done && (
+          <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"12px 16px", flexShrink:0 }}>
+            <div style={{ maxWidth:520, margin:"0 auto", display:"flex", gap:8, alignItems:"flex-end" }}>
+              <textarea value={p2input} onChange={e=>setP2input(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendP2Message(); } }}
+                placeholder="思っていることを自由に...（Ctrl+Enterで送信）"
+                disabled={p2typing}
+                style={{ flex:1, padding:"10px 14px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, fontSize:14, lineHeight:1.6, resize:"none", minHeight:44, maxHeight:100, color:C.text, outline:"none", fontFamily:F }}/>
+              <button onClick={sendP2Message} disabled={p2typing||!p2input.trim()}
+                style={{ width:44, height:44, borderRadius:12, background:p2input.trim()&&!p2typing?C.accent:C.border, border:"none", color:"#fff", cursor:p2input.trim()&&!p2typing?"pointer":"not-allowed", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.15s", fontSize:18 }}>
+                ↑
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // PHASE 2 LOADING
+  // ══════════════════════════════════════════════════════════
+  if (page === "p2_loading") return (
+    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"40px 24px" }}>
+      <GlobalStyles/>
+      <div style={{ width:52, height:52, border:`3px solid ${C.border}`, borderTopColor:C.accent, borderRadius:"50%", animation:"spin 0.9s linear infinite", marginBottom:28 }}/>
+      <h2 style={{ fontSize:20, fontWeight:700, color:C.text, marginBottom:10 }}>あなたの言葉を整理しています</h2>
+      <p style={{ color:C.sub, fontSize:14, lineHeight:1.8 }}>対話の内容から、<br/>キャリアの軸・自己PRを言語化しています。</p>
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════
+  // PHASE 2 RESULT
+  // ══════════════════════════════════════════════════════════
+  if (page === "p2_result") {
+    const r2 = p2result;
+    if (!r2) return null;
+    return (
+      <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F }}>
+        <GlobalStyles/>
+        <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow }}>
+          <div onClick={()=>setPage("home")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:26, height:26, background:C.accent, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5 4L7 9L9 6L12 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <span style={{ fontWeight:800, fontSize:15, color:C.text }}>PathNote</span>
+          </div>
+        </nav>
+
+        <div style={{ maxWidth:560, margin:"0 auto", padding:"32px 20px 56px", animation:"fadeUp 0.4s ease" }}>
+
+          {/* キーワード */}
+          <div style={{ textAlign:"center", marginBottom:28 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:C.muted, letterSpacing:"0.1em", marginBottom:10 }}>STEP 2 完了 · あなたを表すと</div>
+            <div style={{ display:"inline-block", padding:"10px 28px", background:C.accent, color:"#fff", borderRadius:40, fontSize:20, fontWeight:800, boxShadow:`0 4px 20px rgba(45,106,79,0.25)` }}>
+              {r2.keyword}
+            </div>
+          </div>
+
+          {/* AIメッセージ */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"22px 24px", marginBottom:16, boxShadow:C.shadow }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.accentM, marginBottom:10, letterSpacing:"0.06em" }}>AIからのメッセージ</div>
+            <p style={{ fontSize:15, color:C.text, lineHeight:1.9, fontWeight:500 }}>{r2.message}</p>
+          </div>
+
+          {/* キャリアの軸 */}
+          <div style={{ background:`linear-gradient(135deg,${C.accentL},#F0F8F4)`, border:`1px solid ${C.accentM}44`, borderRadius:16, padding:"20px 22px", marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.accent, marginBottom:10, letterSpacing:"0.06em" }}>キャリアの軸</div>
+            <p style={{ fontSize:15, color:C.text, lineHeight:1.9, fontWeight:600 }}>{r2.axis}</p>
+          </div>
+
+          <SectionCard title="強み" color={C.accent} items={r2.strengths}
+            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1L9.5 5.5L14.5 6L11 9.5L12 14.5L7.5 12L3 14.5L4 9.5L0.5 6L5.5 5.5L7.5 1Z" fill={C.accent}/></svg>}
+          />
+          <SectionCard title="大切にしていること" color={C.warm} items={r2.values}
+            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 13S2 9 2 5.5C2 3.5 3.5 2 5.5 2C6.5 2 7.5 2.8 7.5 2.8S8.5 2 9.5 2C11.5 2 13 3.5 13 5.5C13 9 7.5 13 7.5 13Z" fill={C.warm}/></svg>}
+          />
+          <SectionCard title="向かいたい方向" color="#7B5EA7" items={r2.wants}
+            icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5H13M9 3.5L13 7.5L9 11.5" stroke="#7B5EA7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          />
+
+          {/* 自己PR */}
+          <div style={{ background:"#FDF3EA", border:`1px solid ${C.warm}44`, borderRadius:16, padding:"20px 22px", marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.warm, marginBottom:10, letterSpacing:"0.06em" }}>自己PRのベース</div>
+            <p style={{ fontSize:14, color:C.text, lineHeight:1.9 }}>{r2.selfpr}</p>
+            <div style={{ fontSize:11, color:C.muted, marginTop:8 }}>※このテキストをベースに仕上げてください</div>
+          </div>
+
+          {/* 明日できる一歩 */}
+          <div style={{ background:C.surface, border:`1.5px solid ${C.accentM}`, borderRadius:16, padding:"20px 22px", marginBottom:28 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.accentM, marginBottom:10, letterSpacing:"0.06em" }}>まず、これをやってみましょう</div>
+            <p style={{ fontSize:14, color:C.text, lineHeight:1.8, fontWeight:500 }}>→ {r2.action}</p>
+          </div>
+
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <button onClick={()=>setPage("p2_chat")}
+              style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.border}`, borderRadius:12, fontSize:14, color:C.sub, cursor:"pointer" }}>
+              ← 対話に戻る
+            </button>
+            <button onClick={restart}
+              style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
+              最初からやり直す
+            </button>
+          </div>
         </div>
       </div>
     );
