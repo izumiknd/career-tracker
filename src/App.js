@@ -416,6 +416,38 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     setP2typing(false);
   };
 
+  // まとめ提案後に「続ける」を選んだ場合 → AIが新たな質問を生成
+  const continueChat = async () => {
+    setP2done(false);
+    setP2typing(true);
+    const currentMsgs = [...p2messages];
+    setP2messages([...currentMsgs, { role:"assistant", content:"" }]);
+
+    const r = result || savedResult?.result;
+    const context = r
+      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")}`
+      : "";
+    const sys = `${P2_SYSTEM(context, "")}
+
+【重要】ユーザーはもう少し話を続けることを選びました。
+これまでの会話でまだ深掘りできていない部分、または新しい角度から、シンプルな質問を一つだけしてください。
+「さきほどの〇〇について、もう少し聞かせてもらえますか？」のように、会話の流れを自然につなげてください。`;
+
+    try {
+      let finalContent = "";
+      await callAIStream_p2(
+        [{ role:"system", content:sys }, ...currentMsgs],
+        (partial) => {
+          finalContent = partial;
+          setP2messages([...currentMsgs, { role:"assistant", content:partial }]);
+        }
+      );
+    } catch {
+      setP2messages([...currentMsgs, { role:"assistant", content:"もう少し聞かせてもらえますか？" }]);
+    }
+    setP2typing(false);
+  };
+
   const generateP2Result = async () => {
     setPage("p2_loading");
     try {
@@ -914,12 +946,20 @@ selfpr：
               <div style={{ fontSize:11, color:C.muted }}>{p2turn}問回答済み</div>
             </div>
           </div>
-          {p2done && (
-            <button onClick={generateP2Result}
-              style={{ padding:"6px 14px", background:C.accent, color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer" }}>
-              まとめる <ChevronRight size={14} style={{ display:"inline", verticalAlign:"middle" }}/>
-            </button>
-          )}
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            {p2turn > 0 && !p2done && (
+              <button onClick={()=>setPage("mypage")}
+                style={{ padding:"5px 12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, color:C.muted, cursor:"pointer", fontSize:12, fontFamily:F }}>
+                やめる
+              </button>
+            )}
+            {p2done && (
+              <button onClick={generateP2Result}
+                style={{ padding:"6px 14px", background:C.accent, color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                まとめる <ChevronRight size={14} style={{ display:"inline", verticalAlign:"middle" }}/>
+              </button>
+            )}
+          </div>
         </nav>
 
         {/* プログレス */}
@@ -1002,7 +1042,7 @@ selfpr：
                     style={{ width:"100%", padding:"12px", background:C.accent, color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:700, cursor:"pointer" }}>
                     結果をまとめる
                   </button>
-                  <button onClick={()=>{ setP2done(false); }}
+                  <button onClick={continueChat}
                     style={{ width:"100%", padding:"12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:10, fontSize:13, color:C.sub, cursor:"pointer" }}>
                     もう少し話を続ける
                   </button>
@@ -1298,7 +1338,6 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession, logoSrc 
   const TABS = [
     { id:"note", label:"キャリアノート" },
     { id:"log",  label:"対話ログ" },
-    { id:"profile", label:"職歴・スキル" },
   ];
 
   return (
@@ -1525,180 +1564,6 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession, logoSrc 
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {/* ══ 職歴・スキル ══ */}
-        {tab === "profile" && (
-          <div style={{ animation:"fadeUp 0.3s ease", display:"flex", flexDirection:"column", gap:20 }}>
-
-            {/* 職歴 */}
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"20px", boxShadow:C.shadow }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                <div style={{ fontSize:15, fontWeight:700, color:C.text }}>職歴</div>
-                <button onClick={()=>setShowCareerForm(f=>!f)}
-                  style={{ padding:"5px 12px", background:C.accentL, border:`1px solid ${C.accentM}44`, borderRadius:8, color:C.accent, cursor:"pointer", fontSize:12, fontWeight:600 }}>
-                  {showCareerForm ? "閉じる" : "+ 追加"}
-                </button>
-              </div>
-              <div style={{ fontSize:11, color:C.muted, marginBottom:16 }}>直近の職歴から順に入力してください</div>
-
-              {/* 年表 */}
-              {careers.length > 0 && (
-                <div style={{ position:"relative", marginBottom:showCareerForm ? 20 : 0 }}>
-                  <div style={{ position:"absolute", left:10, top:0, bottom:0, width:2, background:`linear-gradient(to bottom,${C.accent},${C.accentM})`, borderRadius:2 }}/>
-                  <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-                    {careers.map((c, i) => (
-                      <div key={c.id} style={{ display:"flex", gap:0, paddingBottom: i<careers.length-1 ? 20 : 0 }}>
-                        <div style={{ width:24, flexShrink:0, display:"flex", justifyContent:"center", paddingTop:14 }}>
-                          <div style={{ width:14, height:14, borderRadius:"50%", background:i===0?C.accent:C.surface, border:`2px solid ${i===0?C.accent:C.accentM}`, zIndex:1 }}/>
-                        </div>
-                        <div style={{ flex:1, background:i===0?C.accentL:C.bg, border:`1px solid ${i===0?C.accentM+"44":C.border}`, borderRadius:12, padding:"12px 14px" }}>
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ fontWeight:700, fontSize:14, color:C.text }}>{c.company}</div>
-                              {c.period && <div style={{ fontSize:11, color:C.muted, fontFamily:FM, marginTop:2 }}>{c.period}</div>}
-                              {c.role && <div style={{ fontSize:13, color:C.sub, marginTop:4, fontWeight:500 }}>{c.role}</div>}
-                              {c.notes && <div style={{ fontSize:12, color:C.muted, marginTop:6, lineHeight:1.6 }}>{c.notes}</div>}
-                            </div>
-                            <button onClick={()=>removeCareer(c.id)}
-                              style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:16, padding:4, flexShrink:0, marginLeft:8 }}>×</button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 職歴追加フォーム */}
-              {showCareerForm && (
-                <div style={{ background:C.bg, borderRadius:12, padding:"16px", border:`1px solid ${C.border}`, display:"flex", flexDirection:"column", gap:12 }}>
-                  <div>
-                    <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:4 }}>会社名</label>
-                    <input value={newCareer.company} onChange={e=>setNewCareer(p=>({...p,company:e.target.value}))} placeholder="株式会社〇〇" style={IS}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:6 }}>在籍期間</label>
-                    <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                      <input value={newCareer.fromY} onChange={e=>setNewCareer(p=>({...p,fromY:e.target.value}))} placeholder="2020" style={{...IS, width:72}} maxLength={4}/>
-                      <span style={{ color:C.muted, fontSize:13 }}>年</span>
-                      <input value={newCareer.fromM} onChange={e=>setNewCareer(p=>({...p,fromM:e.target.value}))} placeholder="4" style={{...IS, width:52}} maxLength={2}/>
-                      <span style={{ color:C.muted, fontSize:13 }}>月 〜</span>
-                      {!newCareer.current && <>
-                        <input value={newCareer.toY} onChange={e=>setNewCareer(p=>({...p,toY:e.target.value}))} placeholder="2023" style={{...IS, width:72}} maxLength={4}/>
-                        <span style={{ color:C.muted, fontSize:13 }}>年</span>
-                        <input value={newCareer.toM} onChange={e=>setNewCareer(p=>({...p,toM:e.target.value}))} placeholder="3" style={{...IS, width:52}} maxLength={2}/>
-                        <span style={{ color:C.muted, fontSize:13 }}>月</span>
-                      </>}
-                      <label style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer", fontSize:13, color:C.sub }}>
-                        <input type="checkbox" checked={newCareer.current} onChange={e=>setNewCareer(p=>({...p,current:e.target.checked}))}/>
-                        現在
-                      </label>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:4 }}>職種・役割</label>
-                    <input value={newCareer.role} onChange={e=>setNewCareer(p=>({...p,role:e.target.value}))} placeholder="例：営業マネージャー" style={IS}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, fontWeight:600, color:C.muted, display:"block", marginBottom:4 }}>メモ（実績・担当業務）</label>
-                    <textarea value={newCareer.notes} onChange={e=>setNewCareer(p=>({...p,notes:e.target.value}))} placeholder="主な実績や担当業務を記入..." style={{...IS, minHeight:60, resize:"none", lineHeight:1.6}}/>
-                  </div>
-                  <button onClick={addCareer}
-                    style={{ width:"100%", padding:"11px", background:C.accent, color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:700, cursor:"pointer" }}>
-                    追加する
-                  </button>
-                </div>
-              )}
-              {careers.length === 0 && !showCareerForm && (
-                <div style={{ textAlign:"center", padding:"16px 0", color:C.muted, fontSize:13 }}>職歴を追加してください</div>
-              )}
-            </div>
-
-            {/* スキル */}
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"20px", boxShadow:C.shadow }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-                <div style={{ fontSize:15, fontWeight:700, color:C.text }}>スキル</div>
-                {editingSkills ? (
-                  <button onClick={saveSkills}
-                    style={{ padding:"5px 14px", background:C.accent, border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700 }}>
-                    保存する
-                  </button>
-                ) : (
-                  <button onClick={()=>setEditingSkills(true)}
-                    style={{ padding:"5px 12px", background:C.accentL, border:`1px solid ${C.accentM}44`, borderRadius:8, color:C.accent, cursor:"pointer", fontSize:12, fontWeight:600 }}>
-                    編集する
-                  </button>
-                )}
-              </div>
-
-              {/* 通常表示：登録済みスキルタグ */}
-              {!editingSkills && (
-                Object.keys(skillMap).length > 0 ? (
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                    {Object.entries(skillMap).map(([skill, years])=>(
-                      <div key={skill} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", background:C.accentL, border:`1px solid ${C.accentM}33`, borderRadius:20 }}>
-                        <span style={{ fontSize:13, color:C.text }}>{skill}</span>
-                        <span style={{ fontSize:11, color:C.accent, fontFamily:FM }}>{years}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"16px 0" }}>
-                    「編集する」を押してスキルを登録してください
-                  </div>
-                )
-              )}
-
-              {/* 編集モード：カテゴリ選択 + フリー入力 */}
-              {editingSkills && (
-                <div>
-                  {/* フリー入力 */}
-                  <div style={{ display:"flex", gap:8, marginBottom:20 }}>
-                    <input value={freeSkillInput} onChange={e=>setFreeSkillInput(e.target.value)}
-                      onKeyDown={e=>e.key==="Enter"&&addFreeSkill()}
-                      placeholder="スキルを自由入力（例：Python、簿記2級）"
-                      style={{...IS, flex:1, fontSize:13}}/>
-                    <button onClick={addFreeSkill}
-                      style={{ padding:"8px 14px", background:C.accent, color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
-                      追加
-                    </button>
-                  </div>
-                  {/* カテゴリ選択 */}
-                  {SKILL_CATS_MP.map(cat=>(
-                    <div key={cat.label} style={{ marginBottom:18 }}>
-                      <div style={{ fontSize:11, fontWeight:700, color:cat.color, marginBottom:8, letterSpacing:"0.04em" }}>{cat.label}</div>
-                      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                        {cat.skills.map(skill=>{
-                          const sel = !!skillMap[skill];
-                          return (
-                            <div key={skill} style={{ border:`1.5px solid ${sel?cat.color:C.border}`, background:sel?`${cat.color}08`:C.bg, borderRadius:10, padding:"8px 12px", transition:"all 0.15s" }}>
-                              <div onClick={()=>toggleSkill(skill)} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", marginBottom:sel?8:0 }}>
-                                <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${sel?cat.color:C.border}`, background:sel?cat.color:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#fff", flexShrink:0 }}>
-                                  {sel && "✓"}
-                                </div>
-                                <span style={{ fontSize:13, color:sel?C.text:C.sub }}>{skill}</span>
-                              </div>
-                              {sel && (
-                                <select value={skillMap[skill]} onChange={e=>setYears(skill,e.target.value)}
-                                  style={{ width:"100%", padding:"4px 8px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, fontSize:12, color:C.sub, fontFamily:FM, outline:"none", cursor:"pointer" }}>
-                                  {YEAR_OPTS.map(y=><option key={y} value={y}>{y}</option>)}
-                                </select>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                  <button onClick={saveSkills}
-                    style={{ width:"100%", padding:"12px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", marginTop:8 }}>
-                    保存する
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>
