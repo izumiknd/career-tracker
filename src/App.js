@@ -80,6 +80,16 @@ async function callAIStream_p2(messages, onChunk) {
   return full;
 }
 
+// ── 悩み選択肢 ───────────────────────────────────────────────
+const CONCERNS = [
+  { id:"strength",  label:"自分の強みがわからない",         desc:"得意なことや人より優れている点が言葉にできない",  color:"#2D6A4F" },
+  { id:"moyo",      label:"仕事でもやもやしている",          desc:"なんとなく違和感があるが、何が問題かわからない",  color:"#7B2FBE" },
+  { id:"value",     label:"何を大切にしているかわからない",  desc:"仕事の軸や価値観が言語化できていない",           color:"#C9742B" },
+  { id:"direction", label:"これからの方向性が見えない",      desc:"キャリアをどう描けばいいかわからない",           color:"#1565C0" },
+  { id:"job",       label:"自分に合った仕事がわからない",    desc:"向いている職種や環境が見えていない",             color:"#AD1457" },
+  { id:"other",     label:"うまく言葉にできないが悩んでいる", desc:"漠然とした不安や迷いを整理したい",             color:"#555550" },
+];
+
 // ── 3つの質問 ─────────────────────────────────────────────────
 const QUESTIONS = [
   {
@@ -128,7 +138,8 @@ const QUESTIONS = [
 
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
-  const [page, setPage]       = useState("home");       // home | quiz | loading | result | p2_intro | p2_chat | p2_loading | p2_result
+  const [page, setPage]       = useState("home");
+  const [concern, setConcern] = useState(null); // 選択された悩み
   const [step, setStep]       = useState(0);
   const [answers, setAnswers] = useState([]);
   const [freeText, setFreeText] = useState("");
@@ -138,7 +149,7 @@ export default function App() {
   const [savedResult, setSavedResult] = useState(null);
 
   // Phase2 state
-  const [p2messages, setP2messages]   = useState([]); // {role, content}
+  const [p2messages, setP2messages]   = useState([]);
   const [p2input, setP2input]         = useState("");
   const [p2typing, setP2typing]       = useState(false);
   const [p2done, setP2done]           = useState(false);
@@ -198,10 +209,13 @@ export default function App() {
     setLoading(true);
     try {
       const answersText = finalAnswers.map(a => `Q: ${a.q}\nA: ${a.a}`).join("\n\n");
+      const concernLabel = CONCERNS.find(c=>c.id===concern)?.label || "";
+      const concernContext = concernLabel ? `\nユーザーが感じている悩み：「${concernLabel}」\nこの悩みを踏まえた言語化をしてください。` : "";
       const prompt = `以下は自己理解のための質問への回答です。JSONのみで返答してください（説明文・コードブロック不要）。
 
 回答:
 ${answersText}
+${concernContext}
 
 以下のJSON形式のみで返答:
 {"strengths":["強み1","強み2","強み3"],"values":["価値観1","価値観2","価値観3"],"wants":["やりたいこと1","やりたいこと2"],"message":"メッセージ","keyword":"キーワード"}
@@ -276,20 +290,33 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     setP2typing(true);
 
     const r = result || savedResult?.result;
+    const concernLabel = CONCERNS.find(c=>c.id===concern)?.label || "";
+    const concernContext = concernLabel ? `ユーザーの悩み：「${concernLabel}」` : "";
     const context = r
-      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")} ／ 向かいたい方向：${(r.wants||[]).join("・")}`
-      : "";
+      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")} ／ 向かいたい方向：${(r.wants||[]).join("・")}${concernContext ? " ／ " + concernContext : ""}`
+      : concernContext;
     const themeId2 = themeId || "free";
     const themeLabel = THEMES_P2_LABELS[themeId2] || "";
-
-    // テーマ別の最初の質問（シンプルで自然なもの）
+    const concernNote = concernLabel ? `STEP1で「${concernLabel}」というお悩みをお聞きしました。` : "";
     const openingByTheme = {
-      moyo:    r ? `STEP1で「${(r.values||[])[0]||""}」を大切にしていると出ていました。最近、仕事でモヤモヤを感じるのはどんな場面ですか？` : "最近、仕事でモヤモヤを感じるのはどんな場面ですか？",
-      tsuyomi: r ? `STEP1で「${(r.strengths||[])[0]||""}」という強みが出ていました。周りから「助かった」「ありがとう」と言われるのは、どんなときが多いですか？` : "周りから「助かった」「ありがとう」と言われるのは、どんなときが多いですか？",
-      taisetu: r ? `STEP1で「${(r.values||[])[0]||""}」を大切にしていると出ていました。仕事をしていて「これだけは妥協したくない」と思うことはありますか？` : "仕事をしていて「これだけは妥協したくない」と思うことはありますか？",
-      tensyoku:r ? `STEP1の結果を拝見しました。転職を考えるようになったのは、どんなきっかけがありましたか？` : "転職を考えるようになったのは、どんなきっかけがありましたか？",
-      career:  r ? `STEP1で「${(r.wants||[])[0]||""}」という方向性が出ていました。5年後、どんな状態でいたいかイメージはありますか？` : "5年後、どんな状態でいたいかイメージはありますか？",
-      free:    r ? `STEP1で「${(r.strengths||[])[0]||""}」という強みが出ていました。今日は何について話してみたいですか？` : "今日は何について話してみたいですか？",
+      moyo:    r
+        ? `${concernNote}STEP1で「${(r.values||[])[0]||""}」を大切にしていると出ていました。最近、仕事でモヤモヤを感じるのはどんな場面ですか？`
+        : `${concernNote}最近、仕事でモヤモヤを感じるのはどんな場面ですか？`,
+      tsuyomi: r
+        ? `${concernNote}STEP1で「${(r.strengths||[])[0]||""}」という強みが出ていました。周りから「助かった」「ありがとう」と言われるのは、どんなときが多いですか？`
+        : `${concernNote}これまでの仕事で、周りから「助かった」「ありがとう」と言われたのはどんなときでしたか？`,
+      taisetu: r
+        ? `${concernNote}STEP1で「${(r.values||[])[0]||""}」を大切にしていると出ていました。仕事をしていて「これだけは妥協したくない」と思うことはありますか？`
+        : `${concernNote}仕事をしていて「これだけは大切にしたい」と感じることはありますか？`,
+      tensyoku:r
+        ? `${concernNote}転職を考えるようになったのは、どんなきっかけがありましたか？`
+        : `${concernNote}転職を考えるようになったのは、どんなきっかけがありましたか？`,
+      career:  r
+        ? `${concernNote}STEP1で「${(r.wants||[])[0]||""}」という方向性が出ていました。5年後、どんな状態でいたいかイメージはありますか？`
+        : `${concernNote}5年後、どんな状態でいたいかイメージはありますか？`,
+      free:    r
+        ? `${concernNote}STEP1の結果を拝見しました。今日は何についてお話しされたいですか？`
+        : `${concernNote}今のお気持ちを教えてください。仕事やキャリアについて、今一番頭にあることはどんなことですか？`,
     };
     const opening = openingByTheme[themeId2] || openingByTheme.free;
 
@@ -308,9 +335,10 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     setP2turn(newTurn);
 
     const r = result || savedResult?.result;
+    const concernLabel = CONCERNS.find(c=>c.id===concern)?.label || "";
     const context = r
-      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")}`
-      : "";
+      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")}${concernLabel ? " ／ ユーザーの悩み：「"+concernLabel+"」" : ""}`
+      : (concernLabel ? `ユーザーの悩み：「${concernLabel}」` : "");
 
     // 深掘り十分かどうかをAIに判定させる
     const depthCheck = newTurn >= 4
@@ -450,26 +478,46 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
   if (page === "home") return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F }}>
       <GlobalStyles/>
-      <Nav showResult={true}/>
+      <Nav/>
 
-      {/* Hero */}
-      <div style={{ maxWidth:560, margin:"0 auto", padding:"56px 24px 40px", textAlign:"center" }}>
-        <div style={{ display:"inline-block", padding:"4px 14px", borderRadius:20, background:C.accentL, border:`1px solid ${C.accentM}44`, color:C.accent, fontSize:12, fontWeight:700, marginBottom:24, letterSpacing:"0.04em" }}>
-          3問 · 2分 · すぐ結果
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"40px 20px 56px" }}>
+        {/* Hero */}
+        <div style={{ textAlign:"center", marginBottom:40 }}>
+          <div style={{ display:"inline-block", padding:"4px 14px", borderRadius:20, background:C.accentL, border:`1px solid ${C.accentM}44`, color:C.accent, fontSize:12, fontWeight:700, marginBottom:20, letterSpacing:"0.04em" }}>
+            2分 · すぐ結果
+          </div>
+          <h1 style={{ fontSize:"clamp(24px,6vw,38px)", fontWeight:800, lineHeight:1.3, color:C.text, marginBottom:16, letterSpacing:"-0.03em" }}>
+            自分の強みを、<br/>言葉にしよう。
+          </h1>
+          <p style={{ fontSize:15, color:C.sub, lineHeight:1.9 }}>
+            AIがあなたの悩みに寄り添いながら、<br/>強み・価値観・方向性を言語化します。
+          </p>
         </div>
 
-        <h1 style={{ fontSize:"clamp(26px,6vw,40px)", fontWeight:800, lineHeight:1.25, color:C.text, marginBottom:20, letterSpacing:"-0.03em" }}>
-          自分の強みを、<br/>言葉にしよう。
-        </h1>
+        {/* 悩み選択 */}
+        <div style={{ marginBottom:28 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:C.text, marginBottom:14, textAlign:"center" }}>
+            今、どんなことで悩んでいますか？
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {CONCERNS.map(c => (
+              <button key={c.id} onClick={()=>setConcern(concern===c.id ? null : c.id)}
+                style={{ textAlign:"left", padding:"14px 18px", background:concern===c.id?`${c.color}0E`:C.surface, border:`2px solid ${concern===c.id?c.color:C.border}`, borderRadius:14, cursor:"pointer", fontFamily:F, transition:"all 0.18s", display:"flex", alignItems:"center", gap:14 }}>
+                <div style={{ width:10, height:10, borderRadius:"50%", background:concern===c.id?c.color:C.border, flexShrink:0, transition:"background 0.18s" }}/>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:14, color:concern===c.id?c.color:C.text, marginBottom:2 }}>{c.label}</div>
+                  <div style={{ fontSize:12, color:C.muted, lineHeight:1.5 }}>{c.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <p style={{ fontSize:15, color:C.sub, lineHeight:1.9, marginBottom:36 }}>
-          たった3問に答えるだけで、AIがあなたの<br/>
-          強み・価値観・やりたいことを言語化します。
-        </p>
-
-        <button onClick={()=>{ setStep(0); setAnswers([]); setPage("quiz"); }}
-          style={{ width:"100%", maxWidth:320, padding:"16px 32px", background:C.accent, color:"#fff", border:"none", borderRadius:14, fontSize:16, fontWeight:700, cursor:"pointer", boxShadow:`0 4px 20px rgba(45,106,79,0.3)`, transition:"all 0.2s", letterSpacing:"-0.01em" }}>
-          はじめる <ChevronRight size={17} style={{ display:"inline", verticalAlign:"middle" }}/>
+        <button
+          onClick={()=>{ if(!concern) return; setStep(0); setAnswers([]); setPage("quiz"); }}
+          disabled={!concern}
+          style={{ width:"100%", padding:"16px 32px", background:concern?C.accent:"#ccc", color:"#fff", border:"none", borderRadius:14, fontSize:16, fontWeight:700, cursor:concern?"pointer":"not-allowed", boxShadow:concern?`0 4px 20px rgba(45,106,79,0.3)`:"none", transition:"all 0.2s" }}>
+          次へ <ChevronRight size={17} style={{ display:"inline", verticalAlign:"middle" }}/>
         </button>
 
         {savedResult && (
@@ -478,19 +526,17 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
             前回の結果を見る（{new Date(savedResult.createdAt).toLocaleDateString("ja-JP")}）
           </button>
         )}
-      </div>
 
-      {/* 特徴 */}
-      <div style={{ maxWidth:560, margin:"0 auto", padding:"0 24px 48px" }}>
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        {/* 特徴 */}
+        <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:40 }}>
           {[
-            { Icon:Zap,     color:"#E8960C", text:"3問に答えるだけ。職歴の入力不要" },
+            { Icon:Zap,     color:"#E8960C", text:"選ぶだけ。職歴の入力不要" },
             { Icon:Brain,   color:"#7B2FBE", text:"AIがあなたの言葉から強みを読み取る" },
             { Icon:PenLine, color:"#4361EE", text:"「言語化できた感」が得られる" },
           ].map((item, i) => (
-            <div key={i} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 18px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
-              <item.Icon size={20} color={item.color} strokeWidth={1.8} style={{ flexShrink:0 }}/>
-              <span style={{ fontSize:14, color:C.sub, lineHeight:1.6 }}>{item.text}</span>
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 16px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
+              <item.Icon size={18} color={item.color} strokeWidth={1.8} style={{ flexShrink:0 }}/>
+              <span style={{ fontSize:13, color:C.sub, lineHeight:1.6 }}>{item.text}</span>
             </div>
           ))}
         </div>
@@ -838,15 +884,7 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
     return (
       <div style={{ minHeight:"100vh", background:C.bg, fontFamily:F }}>
         <GlobalStyles/>
-        <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow }}>
-          <div onClick={()=>setPage("home")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:26, height:26, background:C.accent, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5 4L7 9L9 6L12 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </div>
-            <span style={{ fontWeight:800, fontSize:15, color:C.text }}>PathNote</span>
-          </div>
-        </nav>
-
+        <Nav/>
         <div style={{ maxWidth:560, margin:"0 auto", padding:"32px 20px 56px", animation:"fadeUp 0.4s ease" }}>
 
           {/* キーワード */}
@@ -952,6 +990,7 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
     data={load()||{}}
     onBack={()=>setPage("home")}
     onRestart={restart}
+    logoSrc={logoPathnote}
     onNewSession={(themeId)=>{
       if (themeId) {
         setP2messages([]); setP2turn(0); setP2done(false); setP2result(null);
@@ -998,7 +1037,7 @@ const SKILL_CATS_MP = [
 ];
 const YEAR_OPTS = ["半年未満","半年〜1年","1〜3年","3〜5年","5年以上"];
 
-function MyPage({ data, onBack, onRestart, onNewSession, onViewSession }) {
+function MyPage({ data, onBack, onRestart, onNewSession, onViewSession, logoSrc }) {
   const [tab, setTab] = useState("note");
   const [showCareerForm, setShowCareerForm] = useState(false);
   const [showThemeSelect, setShowThemeSelect] = useState(false);
@@ -1111,9 +1150,7 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession }) {
       )}
       <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow }}>
         <div onClick={onBack} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
-          <div style={{ width:26, height:26, background:C.accent, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5 4L7 9L9 6L12 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </div>
+          <img src={logoSrc} alt="PathNote" style={{ width:28, height:28, objectFit:"contain" }}/>
           <span style={{ fontWeight:800, fontSize:15, color:C.text }}>PathNote</span>
         </div>
         <button onClick={()=>setShowThemeSelect(true)}
