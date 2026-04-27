@@ -326,7 +326,7 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     const concernLabel = CONCERNS.find(c=>c.id===concern)?.label || "";
     const concernContext = concernLabel ? `ユーザーの悩み：「${concernLabel}」` : "";
     const context = r
-      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")} ／ 向かいたい方向：${(r.wants||[]).join("・")}${concernContext ? " ／ " + concernContext : ""}`
+      ? `強み：${(r.strengths||[]).join("・")} ／ 大切にしていること：${(r.values||[]).join("・")} ／ 向いている方向：${(r.wants||[]).join("・")}${concernContext ? " ／ " + concernContext : ""}`
       : concernContext;
     const themeId2 = themeId || "free";
     const themeLabel = THEMES_P2_LABELS[themeId2] || "";
@@ -364,7 +364,7 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     setP2typing(true);
     let displayed = "";
     for (let i = 0; i < opening.length; i++) {
-      await new Promise(res => setTimeout(res, 28));
+      await new Promise(res => setTimeout(res, 12));
       displayed += opening[i];
       setP2messages([{ role:"assistant", content:displayed }]);
     }
@@ -453,7 +453,7 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     try {
       const conv = p2messages.map(m=>`${m.role==="user"?"あなた":"コーチ"}: ${m.content}`).join("\n");
       const r1 = result || savedResult?.result;
-      const base = r1 ? `フェーズ①結果：強み「${(r1.strengths||[]).join("・")}」、価値観「${(r1.values||[]).join("・")}」、向かいたい方向「${(r1.wants||[]).join("・")}」` : "";
+      const base = r1 ? `フェーズ①結果：強み「${(r1.strengths||[]).join("・")}」、価値観「${(r1.values||[]).join("・")}」、向いている方向「${(r1.wants||[]).join("・")}」` : "";
 
       const prompt = `以下はキャリア自己理解の深掘り対話です。JSONのみで返答してください（説明文・コードブロック不要）。
 
@@ -480,11 +480,19 @@ workStyle（理想の働き方・合っている環境）：
 
 aiComment（AIコンサルタントからのコメント）：
 - 対話全体を読んで、本物のキャリアコンサルタントが伝えるようなコメントを書く
+- 「さん」や名前は使わない。「今回の対話を通じて」「お話を聞いていて」のような書き出しにする
 - 本人が言葉にしていないが対話から見えてきたことを具体的に指摘する
-- 「〇〇さんの話を聞いていて感じたのは、〜」「今回の対話で印象的だったのは、〜」のような書き出しが自然
 - 本人が気づいていないかもしれない強みや視点を、温かく・具体的に伝える
 - 3〜4文。「頑張ってください」のような空虚な励ましはNG
 - 対話の中で出てきた具体的な言葉やエピソードに触れること
+
+strengths（強み）：
+- 対話から見えた具体的な強み。2〜4個（無理に3つにしなくてよい）
+- 各項目は20〜40文字程度で具体的に
+
+values：大切にしていること。2〜3個。
+
+wants：向いている方向。2〜3個。「〜な仕事が向いている」「〜な環境で力を発揮できる」のような提案的な表現で書く
 
 careerDirection（向いているキャリアの方向性）：
 - 3〜5年後に向かえる具体的な職種・役割を提案
@@ -881,7 +889,7 @@ selfpr：
           />
 
           {/* やりたいこと */}
-          <SectionCard title="向かいたい方向" color="#7B5EA7" items={r.wants}
+          <SectionCard title="向いている方向" color="#7B5EA7" items={r.wants}
             icon={<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5H13M9 3.5L13 7.5L9 11.5" stroke="#7B5EA7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           />
 
@@ -933,10 +941,10 @@ selfpr：
   // ══════════════════════════════════════════════════════════
   if (page === "p2_chat") {
     return (
-      <div style={{ height:"100dvh", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+      <div style={{ height:"100dvh", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative" }}>
         <GlobalStyles/>
         {/* ヘッダー */}
-        <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 16px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, flexShrink:0 }}>
+        <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 16px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, flexShrink:0, zIndex:20 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <button onClick={()=>setPage("mypage")} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4, display:"flex", alignItems:"center" }}>
               <ArrowLeft size={20}/>
@@ -968,7 +976,7 @@ selfpr：
         </div>
 
         {/* チャットエリア */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"16px 16px 8px" }}>
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"16px 16px 120px" }}>
           <div style={{ maxWidth:520, margin:"0 auto", display:"flex", flexDirection:"column", gap:14 }}>
 
             {/* STEP1結果の要約 */}
@@ -1054,8 +1062,8 @@ selfpr：
           </div>
         </div>
 
-        {/* 入力エリア（常に表示） */}
-        <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"10px 16px", flexShrink:0 }}>
+        {/* 入力エリア（常に画面下部に固定） */}
+        <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"10px 16px env(safe-area-inset-bottom, 10px)", flexShrink:0, position:"sticky", bottom:0, zIndex:20 }}>
           <div style={{ maxWidth:520, margin:"0 auto", display:"flex", gap:8, alignItems:"flex-end" }}>
             <textarea value={p2input} onChange={e=>setP2input(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendP2Message(); } }}
@@ -1136,7 +1144,7 @@ selfpr：
           <SectionCard title="大切にしていること" color={C.warm} items={r2.values}
             icon={<Heart size={15} fill={C.warm} strokeWidth={0}/>}
           />
-          <SectionCard title="向かいたい方向" color="#7B5EA7" items={r2.wants}
+          <SectionCard title="向いている方向" color="#7B5EA7" items={r2.wants}
             icon={<Map size={15} color="#7B5EA7" strokeWidth={1.8}/>}
           />
 
@@ -1180,7 +1188,6 @@ selfpr：
 
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <button onClick={()=>{
-              // マイページに保存
               const existing = load() || {};
               const sessions = existing.sessions || [];
               const newSession = {
@@ -1204,8 +1211,14 @@ selfpr：
               style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.border}`, borderRadius:12, fontSize:14, color:C.sub, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
               <ArrowLeft size={15}/> 対話に戻る
             </button>
-            <button onClick={restart}
+            <button onClick={()=>{
+              if (window.confirm("結果を保存せずにマイページに進みますか？")) setPage("mypage");
+            }}
               style={{ width:"100%", padding:"13px", background:"transparent", border:"none", borderRadius:12, fontSize:13, color:C.muted, cursor:"pointer" }}>
+              保存せずにマイページへ
+            </button>
+            <button onClick={restart}
+              style={{ width:"100%", padding:"12px", background:"transparent", border:"none", borderRadius:12, fontSize:13, color:C.muted, cursor:"pointer" }}>
               最初からやり直す
             </button>
           </div>
@@ -1452,8 +1465,8 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession, logoSrc 
                 <NoteSectionCard title="強み" color={C.accent} items={latest.strengths} Icon={Star}/>
                 {/* 価値観 */}
                 <NoteSectionCard title="大切にしていること" color={C.warm} items={latest.values} Icon={Heart}/>
-                {/* 向かいたい方向 */}
-                <NoteSectionCard title="向かいたい方向" color="#7B5EA7" items={latest.wants} Icon={Map}/>
+                {/* 向いている方向 */}
+                <NoteSectionCard title="向いている方向" color="#7B5EA7" items={latest.wants} Icon={Map}/>
 
                 {/* 理想の働き方 */}
                 {latest.workStyle && (
@@ -1644,9 +1657,9 @@ function NoteSectionCard({ title, color, items, Icon }) {
         {Icon && <Icon size={17} strokeWidth={1.8}/>}
         <span style={{ fontSize:15, fontWeight:700 }}>{title}</span>
       </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+      <div style={{ background:`${color}08`, borderRadius:10, padding:"12px 14px" }}>
         {items.map((item,i)=>(
-          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"10px 14px", background:`${color}08`, borderRadius:8 }}>
+          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom: i < items.length-1 ? 10 : 0 }}>
             <span style={{ color, fontWeight:700, fontSize:13, flexShrink:0, marginTop:1 }}>▸</span>
             <span style={{ fontSize:15, color:C.text, lineHeight:1.7, wordBreak:"keep-all" }}>{item}</span>
           </div>
@@ -1667,9 +1680,9 @@ function SectionCard({ title, color, items, icon }) {
         </div>
         <span style={{ fontSize:15, fontWeight:700, color }}>{title}</span>
       </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ background:`${color}08`, borderRadius:12, padding:"14px 16px" }}>
         {items.map((item, i) => (
-          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 14px", background:`${color}07`, borderRadius:10 }}>
+          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom: i < items.length-1 ? 10 : 0 }}>
             <span style={{ color, fontWeight:700, fontSize:14, flexShrink:0, marginTop:1 }}>▸</span>
             <span style={{ fontSize:15, color:"#1C1C1C", lineHeight:1.7, wordBreak:"keep-all" }}>{item}</span>
           </div>
