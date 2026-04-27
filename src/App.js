@@ -285,16 +285,24 @@ ${concernContext}
 ・「なぜ」は使わない。「どんな場面で」「そのとき何を感じましたか」を使う
 ・アドバイス・評価・判断はしない
 
-【文末のルール】
-・質問するときは必ず「？」をつける
-・共感や受け取りのとき（「〇〇だったんですね。」「それは大変でしたね。」）は疑問符不要
-・ただし、なるべく質問で締めくくるようにする
-・質問は一度に一つだけ
+【質問の作り方】
+・質問は必ずシンプルな一文にする
+・「〇〇と△△が重なる場面は？」のような複合的な質問はしない（答えにくいのでNG）
+・具体的なエピソードを引き出す質問をする
+・「どんな場面でしたか？」「そのとき、どんな気持ちでしたか？」「どんな仕事をしているときが一番楽しいですか？」のようなオープンな質問にする
+・相手が自由に話せる余白を作る
 
-【良い返答の例】
-・「プロジェクトをうまく進められたんですね。そのとき、自分の中で何を大切にしていましたか？」
-・「それはしんどかったですね。その経験から、何か気づいたことはありましたか？」
-・「チームのことをよく見ているんですね。」（共感のみで終わる場合もOK）
+【良い質問の例】
+・「最近、仕事で手応えを感じた瞬間はありましたか？」
+・「そのとき、どんな気持ちでしたか？」
+・「もう少し聞かせてもらえますか？」
+・「それをやっているとき、何が楽しいと感じますか？」
+・「周りから感謝されることって、どんなことが多いですか？」
+
+【文末のルール】
+・質問するときは「？」をつける
+・共感・受け取りのとき（「〇〇だったんですね。」）は疑問符不要
+・なるべく質問で締めくくる
 
 【会話の質の判定基準】
 以下の3つが揃ったら、まとめに入る：
@@ -431,10 +439,12 @@ workStyle（理想の働き方・合っている環境）：
 - 2〜3文
 
 aiComment（AIコンサルタントからのコメント）：
-- 対話全体を通じて見えてきたこと・気づきを、コンサルタントの視点で伝える
-- 「〇〇さんの話を聞いて」という書き出しでもよい
-- 本人が気づいていないかもしれない視点を含める
-- 温かく、具体的に。2〜3文
+- 対話全体を読んで、本物のキャリアコンサルタントが伝えるようなコメントを書く
+- 本人が言葉にしていないが対話から見えてきたことを具体的に指摘する
+- 「〇〇さんの話を聞いていて感じたのは、〜」「今回の対話で印象的だったのは、〜」のような書き出しが自然
+- 本人が気づいていないかもしれない強みや視点を、温かく・具体的に伝える
+- 3〜4文。「頑張ってください」のような空虚な励ましはNG
+- 対話の中で出てきた具体的な言葉やエピソードに触れること
 
 careerDirection（向いているキャリアの方向性）：
 - 3〜5年後に向かえる具体的な職種・役割を提案
@@ -628,22 +638,26 @@ selfpr：
   );
 
   // ── NAV ───────────────────────────────────────────────────
-  const Nav = ({ showResult }) => (
-    <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow }}>
-      <div onClick={()=>setPage("home")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
-        <img src={logoPathnote} alt="PathNote" style={{ width:28, height:28, objectFit:"contain" }}/>
-        <span style={{ fontWeight:800, fontSize:15, color:C.text, letterSpacing:"-0.02em" }}>PathNote</span>
-      </div>
-      <div style={{ display:"flex", gap:8 }}>
-        {(load()||{}).sessions?.length > 0 && (
-          <button onClick={()=>setPage("mypage")}
-            style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 12px", color:C.sub, cursor:"pointer", fontSize:12 }}>
-            マイページ
-          </button>
-        )}
-      </div>
-    </nav>
-  );
+  const Nav = () => {
+    const d = load() || {};
+    const hasSaved = d.sessions?.length > 0 || d.result || d.p2result;
+    return (
+      <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 20px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, position:"sticky", top:0, zIndex:100, boxShadow:C.shadow }}>
+        <div onClick={()=>setPage("home")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
+          <img src={logoPathnote} alt="PathNote" style={{ width:28, height:28, objectFit:"contain" }}/>
+          <span style={{ fontWeight:800, fontSize:15, color:C.text, letterSpacing:"-0.02em" }}>PathNote</span>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          {hasSaved && (
+            <button onClick={()=>setPage("mypage")}
+              style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 12px", color:C.sub, cursor:"pointer", fontSize:12 }}>
+              マイページ
+            </button>
+          )}
+        </div>
+      </nav>
+    );
+  };
 
   // ══════════════════════════════════════════════════════════
   // HOME
@@ -814,12 +828,6 @@ selfpr：
             <div style={{ display:"inline-block", padding:"10px 28px", background:C.accent, color:"#fff", borderRadius:40, fontSize:20, fontWeight:800, letterSpacing:"-0.01em", boxShadow:`0 4px 20px rgba(45,106,79,0.25)` }}>
               {r.keyword}
             </div>
-          </div>
-
-          {/* メッセージ */}
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"22px 24px", marginBottom:20, boxShadow:C.shadow }}>
-            <div style={{ fontSize:11, fontWeight:700, color:C.accentM, marginBottom:10, letterSpacing:"0.06em" }}>AIからのメッセージ</div>
-            <p style={{ fontSize:15, color:C.text, lineHeight:1.9, fontWeight:500 }}>{r.message}</p>
           </div>
 
           {/* 強み */}
@@ -1049,11 +1057,6 @@ selfpr：
           </div>
 
           {/* AIメッセージ */}
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:"22px 24px", marginBottom:16, boxShadow:C.shadow }}>
-            <div style={{ fontSize:11, fontWeight:700, color:C.accentM, marginBottom:10, letterSpacing:"0.06em" }}>AIからのメッセージ</div>
-            <p style={{ fontSize:15, color:C.text, lineHeight:1.9, fontWeight:500 }}>{r2.message}</p>
-          </div>
-
           {/* キャリアの軸 */}
           <div style={{ background:`linear-gradient(135deg,${C.accentL},#F0F8F4)`, border:`1px solid ${C.accentM}44`, borderRadius:16, padding:"20px 22px", marginBottom:14 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, color:C.accent }}>
