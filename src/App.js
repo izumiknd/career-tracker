@@ -182,6 +182,25 @@ export default function App() {
     if (d?.result) setSavedResult(d);
   }, []);
 
+  // ── チャット画面の高さ管理（Android/iOS両対応） ────────────
+  const chatContainerRef = useRef(null);
+  useEffect(() => {
+    if (page !== "p2_chat") return;
+    const update = () => {
+      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      if (chatContainerRef.current) chatContainerRef.current.style.height = h + "px";
+    };
+    update();
+    const vp = window.visualViewport;
+    if (vp) {
+      vp.addEventListener("resize", update);
+      return () => vp.removeEventListener("resize", update);
+    } else {
+      window.addEventListener("resize", update);
+      return () => window.removeEventListener("resize", update);
+    }
+  }, [page]);
+
   const currentQ = QUESTIONS[step];
   const progress = ((step) / QUESTIONS.length) * 100;
 
@@ -940,27 +959,6 @@ selfpr：
       </div>
     );
   }
-
-  // ── チャット画面の高さ管理（Android/iOS両対応） ────────────
-  const chatContainerRef = useRef(null);
-  useEffect(() => {
-    if (page !== "p2_chat") return;
-    const update = () => {
-      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-      if (chatContainerRef.current) {
-        chatContainerRef.current.style.height = h + "px";
-      }
-    };
-    update();
-    const vp = window.visualViewport;
-    if (vp) {
-      vp.addEventListener("resize", update);
-      return () => vp.removeEventListener("resize", update);
-    } else {
-      window.addEventListener("resize", update);
-      return () => window.removeEventListener("resize", update);
-    }
-  }, [page]);
 
   // ══════════════════════════════════════════════════════════
   // PHASE 2 CHAT
