@@ -671,8 +671,8 @@ selfpr：
       @keyframes fadeUp   { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
       @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
       @keyframes spin     { to{transform:rotate(360deg)} }
+      @keyframes blink    { 0%,100%{opacity:1} 50%{opacity:0} }
       @keyframes pulse    { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
-      @keyframes shimmer  { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
       * { box-sizing:border-box; margin:0; padding:0; }
       body { background:${C.bg}; font-family:${F}; }
       button { font-family:${F}; }
@@ -936,12 +936,33 @@ selfpr：
     );
   }
 
+  // ── チャット画面の高さ管理（Android/iOS両対応） ────────────
+  const chatContainerRef = useRef(null);
+  useEffect(() => {
+    if (page !== "p2_chat") return;
+    const update = () => {
+      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      if (chatContainerRef.current) {
+        chatContainerRef.current.style.height = h + "px";
+      }
+    };
+    update();
+    const vp = window.visualViewport;
+    if (vp) {
+      vp.addEventListener("resize", update);
+      return () => vp.removeEventListener("resize", update);
+    } else {
+      window.addEventListener("resize", update);
+      return () => window.removeEventListener("resize", update);
+    }
+  }, [page]);
+
   // ══════════════════════════════════════════════════════════
   // PHASE 2 CHAT
   // ══════════════════════════════════════════════════════════
   if (page === "p2_chat") {
     return (
-      <div style={{ height:"100dvh", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative" }}>
+      <div ref={chatContainerRef} style={{ position:"fixed", top:0, left:0, right:0, height:"100%", background:C.bg, fontFamily:F, display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <GlobalStyles/>
         {/* ヘッダー */}
         <nav style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"0 16px", display:"flex", alignItems:"center", justifyContent:"space-between", height:52, flexShrink:0, zIndex:20 }}>
@@ -976,7 +997,7 @@ selfpr：
         </div>
 
         {/* チャットエリア */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"16px 16px 120px" }}>
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"16px 16px 16px" }}>
           <div style={{ maxWidth:520, margin:"0 auto", display:"flex", flexDirection:"column", gap:14 }}>
 
             {/* STEP1結果の要約 */}
@@ -1062,8 +1083,8 @@ selfpr：
           </div>
         </div>
 
-        {/* 入力エリア（常に画面下部に固定） */}
-        <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"10px 16px env(safe-area-inset-bottom, 10px)", flexShrink:0, position:"sticky", bottom:0, zIndex:20 }}>
+        {/* 入力エリア */}
+        <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"10px 16px 10px", flexShrink:0, zIndex:20 }}>
           <div style={{ maxWidth:520, margin:"0 auto", display:"flex", gap:8, alignItems:"flex-end" }}>
             <textarea value={p2input} onChange={e=>setP2input(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendP2Message(); } }}
