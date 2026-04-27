@@ -47,16 +47,20 @@ const KEY = "pathnote_mvp_v1";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
 const save = (d) => localStorage.setItem(KEY, JSON.stringify(d));
 
-// ── Groq API ──────────────────────────────────────────────────
-async function callAIJSON(messages) {
-  const apiKey = process.env.REACT_APP_GROQ_API_KEY;
-  if (!apiKey) throw new Error("APIキーが未設定です");
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+// ── API（バックエンド経由） ────────────────────────────────────
+// Groq APIキーはサーバー側（api/analyze.js, api/chat.js）に置き
+// フロントからは /api/... エンドポイントだけを叩く
+
+async function callAIJSON(messages, model) {
+  const res = await fetch("/api/analyze", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages, temperature: 0.5, max_tokens: 800 }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, model }),
   });
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e?.error?.message || res.statusText); }
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    throw new Error(e?.error || `エラー: ${res.status}`);
+  }
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content || "";
   const start = text.indexOf("{");
@@ -70,14 +74,15 @@ async function callAIJSON(messages) {
 }
 
 async function callAIStream_p2(messages, onChunk) {
-  const apiKey = process.env.REACT_APP_GROQ_API_KEY;
-  if (!apiKey) throw new Error("APIキーが未設定です");
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const res = await fetch("/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages, temperature: 0.6, max_tokens: 300, stream: true }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages }),
   });
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e?.error?.message || res.statusText); }
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    throw new Error(e?.error || `エラー: ${res.status}`);
+  }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let full = "";
