@@ -480,63 +480,41 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
       <GlobalStyles/>
       <Nav/>
 
-      <div style={{ maxWidth:560, margin:"0 auto", padding:"40px 20px 56px" }}>
-        {/* Hero */}
-        <div style={{ textAlign:"center", marginBottom:40 }}>
-          <div style={{ display:"inline-block", padding:"4px 14px", borderRadius:20, background:C.accentL, border:`1px solid ${C.accentM}44`, color:C.accent, fontSize:12, fontWeight:700, marginBottom:20, letterSpacing:"0.04em" }}>
-            2分 · すぐ結果
-          </div>
-          <h1 style={{ fontSize:"clamp(24px,6vw,38px)", fontWeight:800, lineHeight:1.3, color:C.text, marginBottom:16, letterSpacing:"-0.03em" }}>
-            自分の強みを、<br/>言葉にしよう。
-          </h1>
-          <p style={{ fontSize:15, color:C.sub, lineHeight:1.9 }}>
-            AIがあなたの悩みに寄り添いながら、<br/>強み・価値観・方向性を言語化します。
-          </p>
+      {/* Hero */}
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"56px 24px 40px", textAlign:"center" }}>
+        <div style={{ display:"inline-block", padding:"4px 14px", borderRadius:20, background:C.accentL, border:`1px solid ${C.accentM}44`, color:C.accent, fontSize:12, fontWeight:700, marginBottom:24, letterSpacing:"0.04em" }}>
+          3問 · 2分 · すぐ結果
         </div>
-
-        {/* 悩み選択 */}
-        <div style={{ marginBottom:28 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:C.text, marginBottom:14, textAlign:"center" }}>
-            今、どんなことで悩んでいますか？
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-            {CONCERNS.map(c => (
-              <button key={c.id} onClick={()=>setConcern(concern===c.id ? null : c.id)}
-                style={{ textAlign:"left", padding:"14px 18px", background:concern===c.id?`${c.color}0E`:C.surface, border:`2px solid ${concern===c.id?c.color:C.border}`, borderRadius:14, cursor:"pointer", fontFamily:F, transition:"all 0.18s", display:"flex", alignItems:"center", gap:14 }}>
-                <div style={{ width:10, height:10, borderRadius:"50%", background:concern===c.id?c.color:C.border, flexShrink:0, transition:"background 0.18s" }}/>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:14, color:concern===c.id?c.color:C.text, marginBottom:2 }}>{c.label}</div>
-                  <div style={{ fontSize:12, color:C.muted, lineHeight:1.5 }}>{c.desc}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button
-          onClick={()=>{ if(!concern) return; setStep(0); setAnswers([]); setPage("quiz"); }}
-          disabled={!concern}
-          style={{ width:"100%", padding:"16px 32px", background:concern?C.accent:"#ccc", color:"#fff", border:"none", borderRadius:14, fontSize:16, fontWeight:700, cursor:concern?"pointer":"not-allowed", boxShadow:concern?`0 4px 20px rgba(45,106,79,0.3)`:"none", transition:"all 0.2s" }}>
-          次へ <ChevronRight size={17} style={{ display:"inline", verticalAlign:"middle" }}/>
+        <h1 style={{ fontSize:"clamp(26px,6vw,40px)", fontWeight:800, lineHeight:1.25, color:C.text, marginBottom:20, letterSpacing:"-0.03em" }}>
+          自分の強みを、<br/>言葉にしよう。
+        </h1>
+        <p style={{ fontSize:15, color:C.sub, lineHeight:1.9, marginBottom:36 }}>
+          たった3問に答えるだけで、AIがあなたの<br/>
+          強み・価値観・やりたいことを言語化します。
+        </p>
+        <button onClick={()=>{ setStep(0); setAnswers([]); setPage("quiz"); }}
+          style={{ width:"100%", maxWidth:320, padding:"16px 32px", background:C.accent, color:"#fff", border:"none", borderRadius:14, fontSize:16, fontWeight:700, cursor:"pointer", boxShadow:`0 4px 20px rgba(45,106,79,0.3)`, transition:"all 0.2s", letterSpacing:"-0.01em" }}>
+          はじめる <ChevronRight size={17} style={{ display:"inline", verticalAlign:"middle" }}/>
         </button>
-
         {savedResult && (
           <button onClick={()=>{ setResult(savedResult.result); setPage("result"); }}
             style={{ display:"block", margin:"16px auto 0", background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, textDecoration:"underline" }}>
             前回の結果を見る（{new Date(savedResult.createdAt).toLocaleDateString("ja-JP")}）
           </button>
         )}
+      </div>
 
-        {/* 特徴 */}
-        <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:40 }}>
+      {/* 特徴 */}
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"0 24px 48px" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           {[
-            { Icon:Zap,     color:"#E8960C", text:"選ぶだけ。職歴の入力不要" },
+            { Icon:Zap,     color:"#E8960C", text:"3問に答えるだけ。職歴の入力不要" },
             { Icon:Brain,   color:"#7B2FBE", text:"AIがあなたの言葉から強みを読み取る" },
             { Icon:PenLine, color:"#4361EE", text:"「言語化できた感」が得られる" },
           ].map((item, i) => (
-            <div key={i} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 16px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
-              <item.Icon size={18} color={item.color} strokeWidth={1.8} style={{ flexShrink:0 }}/>
-              <span style={{ fontSize:13, color:C.sub, lineHeight:1.6 }}>{item.text}</span>
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 18px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
+              <item.Icon size={20} color={item.color} strokeWidth={1.8} style={{ flexShrink:0 }}/>
+              <span style={{ fontSize:14, color:C.sub, lineHeight:1.6 }}>{item.text}</span>
             </div>
           ))}
         </div>
@@ -693,13 +671,13 @@ axis：この人の本質的な方向性を2〜3文で。具体的に。
               次のステップでは、AIとの対話を通じて、さらに詳しく言語化できます。
             </p>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              <button onClick={restart}
-                style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
-                もう一度やってみる
-              </button>
               <button onClick={()=>startPhase2("free")}
-                style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.accent}`, borderRadius:12, fontSize:14, fontWeight:600, color:C.accent, cursor:"pointer" }}>
+                style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
                 AIと対話してもっと深掘りする <ChevronRight size={15} style={{ display:"inline", verticalAlign:"middle" }}/>
+              </button>
+              <button onClick={restart}
+                style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.border}`, borderRadius:12, fontSize:14, fontWeight:600, color:C.sub, cursor:"pointer" }}>
+                もう一度やってみる
               </button>
             </div>
           </div>
