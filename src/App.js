@@ -176,7 +176,8 @@ export default function App() {
   const [p2done, setP2done]           = useState(false);
   const [p2result, setP2result]       = useState(null);
   const [p2turn, setP2turn]           = useState(0);
-  const [p2choices, setP2choices]     = useState([]); // クイック返信の選択肢
+  const [p2choices, setP2choices]     = useState([]);
+  const [savingImage, setSavingImage] = useState(false);
 
   useEffect(() => {
     const d = load();
@@ -449,7 +450,6 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
       const { cleanText, choices } = parseChoices(finalContent);
       setP2messages([...newMsgs, { role:"assistant", content:cleanText }]);
       setP2choices(choices);
-      persistSession({ themeId: selectedTheme, messages:[...newMsgs, { role:"assistant", content:cleanText }] });
 
       if (cleanText.includes("整理する") || cleanText.includes("まとめ") || newTurn >= 8) {
         setP2done(true);
@@ -904,7 +904,6 @@ selfpr：
   // ══════════════════════════════════════════════════════════
   // RESULT
   // ══════════════════════════════════════════════════════════
-  const [savingImage, setSavingImage] = useState(false);
 
   const roundRect = (ctx, x, y, w, h, r) => {
     ctx.beginPath();
