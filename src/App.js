@@ -176,6 +176,7 @@ export default function App() {
   const [p2done, setP2done]           = useState(false);
   const [p2result, setP2result]       = useState(null);
   const [p2turn, setP2turn]           = useState(0);
+  const [p2choices, setP2choices]     = useState([]); // クイック返信の選択肢
 
   useEffect(() => {
     const d = load();
@@ -258,32 +259,34 @@ ${answersText}
 ${concernContext}
 
 以下のJSON形式のみで返答:
-{"strengths":["強み1","強み2","強み3"],"values":["価値観1","価値観2","価値観3"],"wants":["やりたいこと1","やりたいこと2"],"message":"メッセージ","keyword":"キーワード"}
+{"strengths":["強み1","強み2"],"values":["価値観1","価値観2","価値観3"],"wants":["向いている方向1","向いている方向2"],"keyword":"キーワード"}
 
-【厳守ルール】
-1. MECE（重複なし・漏れなし）を徹底すること
-   - 同じ概念を言い方を変えて繰り返さない（例：「効率性の追求」と「効率化へのこだわり」はNG）
-   - 各カテゴリ内の項目は互いに異なる角度の内容にすること
-   - strengths・values・wantsの間でも内容が重複しないこと
+【絶対に守るルール】
+1. 回答内容から直接読み取れることだけを書く
+   - 回答に出ていないことは絶対に含めない
+   - 推測・憶測・一般論は書かない
+   - 「専門性を深める」「グローバルに」など回答に根拠のない内容はNG
 
-2. strengths（強み）：3個
-   - 「何ができるか」「どう行動するか」という具体的な能力・行動特性
-   - 例：「相手の話を整理して本質を引き出す力」「完成度にこだわり最後まで仕上げる粘り強さ」
-   - NG：抽象的すぎる表現（「コミュニケーション能力」「真面目さ」）
+2. strengths（強み）：1〜3個
+   - 回答から明確に読み取れる強みのみ
+   - 根拠が薄い場合は1〜2個でよい。無理に3つ出さない
+   - 具体的な行動・特性で表現する
 
-3. values（価値観）：3個
-   - 「何を大切にしているか」という判断基準・優先順位
-   - 例：「人が安心して相談できる関係」「手を抜かず誠実に向き合うこと」
-   - NG：行動の結果（強みと重複）、目標（やりたいことと重複）
+3. values（価値観）：1〜3個
+   - 回答から読み取れる大切にしていることのみ
 
-4. wants（やりたいこと）：2個
-   - 「どこに向かいたいか」という方向性・志向
-   - 例：「チームが自然とまとまる環境をつくる」「専門性を深めて頼られる存在になる」
-   - NG：抽象的すぎる表現（「成長したい」「貢献したい」）
+4. wants（向いている方向）：1〜2個
+   - 回答から読み取れる範囲でのみ提案する
+   - 根拠がなければ1個でよい
+   - 「〜な環境が向いている」「〜な役割が合っている」という提案的な表現で
 
-5. message：「あなたは〜」で始まる2文。回答内容を踏まえた具体的な言葉で
-6. keyword：5〜10文字。この人の本質を表す一言（例：「静かな推進力」「人を活かす目」）
-7. すべて日本語。各項目は15〜30文字程度`;
+5. keyword：5〜10文字
+   - 回答内容を象徴する一言
+   - 自然な日本語で。詩的すぎず、意味が伝わる表現にする
+   - 例：「場をまとめる人」「縁の下の調整力」「チームの安定剤」
+   - NG：「静かな〇〇」「〇〇の錬金術師」のような意味が伝わりにくい比喩
+
+6. すべて日本語。MECE（各カテゴリ内・カテゴリ間で重複なし）`;
 
       const res = await callAIJSON([{ role: "user", content: prompt }]);
       setResult(res);
@@ -311,17 +314,17 @@ ${concernContext}
 
 【質問の作り方】
 ・質問は必ずシンプルな一文にする
-・「〇〇と△△が重なる場面は？」のような複合的な質問はしない（答えにくいのでNG）
+・複合的な質問はしない（答えにくいのでNG）
 ・具体的なエピソードを引き出す質問をする
-・「どんな場面でしたか？」「そのとき、どんな気持ちでしたか？」「どんな仕事をしているときが一番楽しいですか？」のようなオープンな質問にする
 ・相手が自由に話せる余白を作る
 
-【良い質問の例】
-・「最近、仕事で手応えを感じた瞬間はありましたか？」
-・「そのとき、どんな気持ちでしたか？」
-・「もう少し聞かせてもらえますか？」
-・「それをやっているとき、何が楽しいと感じますか？」
-・「周りから感謝されることって、どんなことが多いですか？」
+【選択肢の生成】
+毎回の返答の末尾に必ず以下の形式で選択肢を3つ追加すること：
+[choices: 選択肢A|選択肢B|選択肢C]
+・各選択肢は15文字以内の短い表現
+・「はい」「いいえ」ではなく具体的な内容にする
+・答えやすい選択肢にする
+・例：[choices: うまくいったとき|困難だったとき|普段の業務中]
 
 【文末のルール】
 ・質問するときは「？」をつける
@@ -402,6 +405,7 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     const newTurn = p2turn + 1;
     setP2messages([...newMsgs, { role:"assistant", content:"" }]);
     setP2input("");
+    setP2choices([]);
     setP2typing(true);
     setP2turn(newTurn);
 
@@ -422,17 +426,34 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     const sys = `${P2_SYSTEM(context, "")}${depthCheck}`;
 
     try {
+      // 選択肢を抽出してメッセージから除去
+      const parseChoices = (text) => {
+        const match = text.match(/\[choices:\s*([^\]]+)\]/);
+        if (match) {
+          const choices = match[1].split("|").map(s => s.trim()).filter(Boolean);
+          const cleanText = text.replace(/\[choices:[^\]]+\]/, "").trim();
+          return { cleanText, choices };
+        }
+        return { cleanText: text, choices: [] };
+      };
+
       let finalContent = "";
       await callAIStream_p2(
         [{ role:"system", content:sys }, ...newMsgs],
         (partial) => {
           finalContent = partial;
-          setP2messages([...newMsgs, { role:"assistant", content:partial }]);
+          const { cleanText } = parseChoices(partial);
+          setP2messages([...newMsgs, { role:"assistant", content:cleanText }]);
         }
       );
-      // 「整理することができます」が含まれたらまとめ提案フラグ
-      if (finalContent.includes("整理する") || finalContent.includes("まとめ") || newTurn >= 8) {
+      const { cleanText, choices } = parseChoices(finalContent);
+      setP2messages([...newMsgs, { role:"assistant", content:cleanText }]);
+      setP2choices(choices);
+      persistSession({ themeId: selectedTheme, messages:[...newMsgs, { role:"assistant", content:cleanText }] });
+
+      if (cleanText.includes("整理する") || cleanText.includes("まとめ") || newTurn >= 8) {
         setP2done(true);
+        setP2choices([]);
       }
     } catch {
       setP2messages([...newMsgs, { role:"assistant", content:"申し訳ありません。もう一度送信してください。" }]);
@@ -769,7 +790,7 @@ selfpr：
           {[
             { Icon:Zap,     color:"#E8960C", text:"3問に答えるだけ。職歴の入力不要" },
             { Icon:Brain,   color:"#7B2FBE", text:"AIがあなたの言葉から強みを読み取る" },
-            { Icon:PenLine, color:"#4361EE", text:"「言語化できた感」が得られる" },
+            { Icon:PenLine, color:"#4361EE", text:"モヤモヤが、言葉になる" },
           ].map((item, i) => (
             <div key={i} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 18px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
               <item.Icon size={20} color={item.color} strokeWidth={1.8} style={{ flexShrink:0 }}/>
@@ -883,6 +904,123 @@ selfpr：
   // ══════════════════════════════════════════════════════════
   // RESULT
   // ══════════════════════════════════════════════════════════
+  const [savingImage, setSavingImage] = useState(false);
+
+  const roundRect = (ctx, x, y, w, h, r) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  };
+
+  const saveAsImage = async (resultData, type = "step1") => {
+    setSavingImage(true);
+    try {
+      const canvas = document.createElement("canvas");
+      const scale = 2;
+      const W = 375;
+      // セクション数に応じて高さを計算
+      const sections = [
+        resultData.strengths,
+        resultData.values,
+        resultData.wants,
+        type === "step2" && resultData.axis ? [resultData.axis] : null,
+      ].filter(Boolean);
+      const totalItems = sections.reduce((sum, s) => sum + (s?.length || 0), 0);
+      const H = 110 + sections.length * 50 + totalItems * 28 + 50;
+      canvas.width = W * scale;
+      canvas.height = H * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      // 背景
+      ctx.fillStyle = "#F8F6F2";
+      ctx.fillRect(0, 0, W, H);
+      // 左アクセントライン
+      ctx.fillStyle = "#2D6A4F";
+      ctx.fillRect(0, 0, 4, H);
+
+      // ヘッダー
+      ctx.fillStyle = "#FDFCFA";
+      ctx.fillRect(0, 0, W, 52);
+      ctx.strokeStyle = "#E8E3DC";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, 52); ctx.lineTo(W, 52); ctx.stroke();
+      ctx.fillStyle = "#2D6A4F";
+      ctx.font = "bold 17px sans-serif";
+      ctx.fillText("PathNote", 16, 34);
+
+      // キーワード
+      const kw = resultData.keyword || "";
+      ctx.fillStyle = "#9B9790";
+      ctx.font = "11px sans-serif";
+      ctx.fillText("あなたを一言で表すと", 16, 72);
+      const kwW = Math.min(ctx.measureText(kw).width + 40, W - 32);
+      ctx.fillStyle = "#2D6A4F";
+      roundRect(ctx, 16, 80, kwW, 34, 17);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText(kw, 30, 103);
+
+      // セクション
+      let y = 128;
+      const drawSection = (title, items, color) => {
+        if (!items || items.length === 0) return;
+        ctx.fillStyle = color;
+        ctx.font = "bold 12px sans-serif";
+        ctx.fillText(title, 16, y);
+        y += 12;
+        const boxH = items.length * 28 + 12;
+        ctx.fillStyle = color + "18";
+        roundRect(ctx, 16, y, W - 32, boxH, 8);
+        ctx.fill();
+        items.forEach((item, i) => {
+          ctx.fillStyle = color;
+          ctx.font = "bold 12px sans-serif";
+          ctx.fillText("▸", 26, y + 22 + i * 28);
+          ctx.fillStyle = "#1C1C1C";
+          ctx.font = "13px sans-serif";
+          const text = item.length > 24 ? item.slice(0, 23) + "…" : item;
+          ctx.fillText(text, 42, y + 22 + i * 28);
+        });
+        y += boxH + 14;
+      };
+
+      drawSection("強み", resultData.strengths, "#2D6A4F");
+      drawSection("大切にしていること", resultData.values, "#C9742B");
+      drawSection("向いている方向", resultData.wants, "#7B5EA7");
+      if (type === "step2" && resultData.axis) {
+        const axisShort = resultData.axis.length > 40 ? resultData.axis.slice(0, 39) + "…" : resultData.axis;
+        drawSection("キャリアの軸", [axisShort], "#2D6A4F");
+      }
+
+      // フッター
+      ctx.strokeStyle = "#E8E3DC";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, H - 32); ctx.lineTo(W, H - 32); ctx.stroke();
+      ctx.fillStyle = "#9B9790";
+      ctx.font = "11px sans-serif";
+      ctx.fillText("pathnote.jp", 16, H - 12);
+      ctx.fillText(new Date().toLocaleDateString("ja-JP"), W - 85, H - 12);
+
+      const link = document.createElement("a");
+      link.download = `pathnote-${Date.now()}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (e) {
+      alert("画像の保存に失敗しました。");
+    }
+    setSavingImage(false);
+  };
+
   if (page === "result") {
     const r = result;
     if (!r) return null;
@@ -928,6 +1066,11 @@ selfpr：
               <button onClick={()=>startPhase2("free")}
                 style={{ width:"100%", padding:"13px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)` }}>
                 AIと対話してもっと深掘りする <ChevronRight size={15} style={{ display:"inline", verticalAlign:"middle" }}/>
+              </button>
+              <button onClick={()=>saveAsImage(r, "step1")} disabled={savingImage}
+                style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.accentM}`, borderRadius:12, fontSize:14, fontWeight:600, color:C.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M5 7l3 3 3-3M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke={C.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                {savingImage ? "保存中..." : "結果を画像で保存"}
               </button>
               <button onClick={restart}
                 style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.border}`, borderRadius:12, fontSize:14, fontWeight:600, color:C.sub, cursor:"pointer" }}>
@@ -1088,6 +1231,20 @@ selfpr：
 
         {/* 入力エリア */}
         <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"10px 16px 10px", flexShrink:0, zIndex:20 }}>
+          {/* 選択肢ボタン */}
+          {p2choices.length > 0 && !p2done && (
+            <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+              {p2choices.map((choice, i) => (
+                <button key={i} onClick={()=>{
+                  setP2input(choice);
+                  setP2choices([]);
+                }}
+                  style={{ padding:"7px 14px", background:C.accentL, border:`1.5px solid ${C.accentM}55`, borderRadius:20, color:C.accent, cursor:"pointer", fontSize:13, fontFamily:F, fontWeight:600, whiteSpace:"nowrap" }}>
+                  {choice}
+                </button>
+              ))}
+            </div>
+          )}
           <div style={{ maxWidth:520, margin:"0 auto", display:"flex", gap:8, alignItems:"flex-end" }}>
             <textarea value={p2input} onChange={e=>setP2input(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendP2Message(); } }}
@@ -1230,6 +1387,11 @@ selfpr：
             }}
               style={{ width:"100%", padding:"14px", background:C.accent, color:"#fff", border:"none", borderRadius:12, fontSize:15, fontWeight:700, cursor:"pointer", boxShadow:`0 3px 12px rgba(45,106,79,0.25)`, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
               <Save size={16}/> 保存してマイページへ
+            </button>
+            <button onClick={()=>saveAsImage(r2, "step2")} disabled={savingImage}
+              style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.accentM}`, borderRadius:12, fontSize:14, fontWeight:600, color:C.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M5 7l3 3 3-3M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke={C.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              {savingImage ? "保存中..." : "結果を画像で保存"}
             </button>
             <button onClick={()=>setPage("p2_chat")}
               style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.border}`, borderRadius:12, fontSize:14, color:C.sub, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
