@@ -905,116 +905,171 @@ selfpr：
   // RESULT
   // ══════════════════════════════════════════════════════════
 
-  const roundRect = (ctx, x, y, w, h, r) => {
+  // ── テキスト折り返しヘルパー ─────────────────────────────────
+  const wrapTextImg = (ctx, text, maxW) => {
+    const chars = text.split("");
+    const lines = [];
+    let current = "";
+    for (const ch of chars) {
+      const test = current + ch;
+      if (ctx.measureText(test).width > maxW && current.length > 0) {
+        lines.push(current);
+        current = ch;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines.length ? lines : [text];
+  };
+
+  const rrFill = (ctx, x, y, w, h, r) => {
     ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.arcTo(x + w, y, x + w, y + r, r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-    ctx.lineTo(x + r, y + h);
-    ctx.arcTo(x, y + h, x, y + h - r, r);
-    ctx.lineTo(x, y + r);
-    ctx.arcTo(x, y, x + r, y, r);
-    ctx.closePath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+    ctx.arcTo(x+w,y,x+w,y+r,r); ctx.lineTo(x+w,y+h-r);
+    ctx.arcTo(x+w,y+h,x+w-r,y+h,r); ctx.lineTo(x+r,y+h);
+    ctx.arcTo(x,y+h,x,y+h-r,r); ctx.lineTo(x,y+r);
+    ctx.arcTo(x,y,x+r,y,r); ctx.closePath(); ctx.fill();
   };
 
   const saveAsImage = async (resultData, type = "step1") => {
     setSavingImage(true);
     try {
+      // Noto Sans JP読み込み
+      try {
+        const f = new FontFace("NotoSansJP", "url(https://fonts.gstatic.com/s/notosansjp/v53/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFBEj757_fC6Wl6V_MSqnqNcaEQ.woff2)");
+        await f.load();
+        document.fonts.add(f);
+      } catch {}
+
+      const scale  = 2;
+      const W      = 390;
+      const PAD    = 24;
+      const INNER  = W - PAD * 2;
+      const ITEM_H = 28;
+      const BOX_PY = 12;
+
+      // ── 1パス：高さを計算するためのダミーcanvas ──
+      const tmp = document.createElement("canvas");
+      tmp.width = W * scale; tmp.height = 10 * scale;
+      const tc = tmp.getContext("2d"); tc.scale(scale, scale);
+
+      const buildSections = () => {
+        const secs = [];
+        const add = (title, items, color, isBlock) => {
+          if (!items?.length) return;
+          const allLines = [];
+          items.forEach((item, idx) => {
+            tc.font = `13px NotoSansJP, sans-serif`;
+            const maxW = isBlock ? INNER - 16 : INNER - 28;
+            const wrapped = wrapTextImg(tc, item, maxW);
+            wrapped.forEach((line, li) => allLines.push({ line, bullet: !isBlock && li === 0, color }));
+          });
+          secs.push({ title, allLines, color, isBlock });
+        };
+        add("強み",              resultData.strengths, "#2D6A4F", false);
+        add("大切にしていること", resultData.values,    "#C9742B", false);
+        add("向いている方向",    resultData.wants,      "#7B5EA7", false);
+        if (type === "step2" && resultData.axis) {
+          tc.font = `13px NotoSansJP, sans-serif`;
+          const axisLines = wrapTextImg(tc, resultData.axis, INNER - 16);
+          add("キャリアの軸", axisLines, "#2D6A4F", true);
+        }
+        return secs;
+      };
+
+      const secs = buildSections();
+
+      // 高さ計算
+      let H = 60 + 90; // ヘッダー + キーワード
+      secs.forEach(s => {
+        H += 24 + BOX_PY + s.allLines.length * ITEM_H + BOX_PY + 14;
+      });
+      H += 44; // フッター
+
+      // ── 本番canvas ──
       const canvas = document.createElement("canvas");
-      const scale = 2;
-      const W = 375;
-      // セクション数に応じて高さを計算
-      const sections = [
-        resultData.strengths,
-        resultData.values,
-        resultData.wants,
-        type === "step2" && resultData.axis ? [resultData.axis] : null,
-      ].filter(Boolean);
-      const totalItems = sections.reduce((sum, s) => sum + (s?.length || 0), 0);
-      const H = 110 + sections.length * 50 + totalItems * 28 + 50;
-      canvas.width = W * scale;
-      canvas.height = H * scale;
-      const ctx = canvas.getContext("2d");
-      ctx.scale(scale, scale);
+      canvas.width = W * scale; canvas.height = H * scale;
+      const ctx = canvas.getContext("2d"); ctx.scale(scale, scale);
 
       // 背景
       ctx.fillStyle = "#F8F6F2";
       ctx.fillRect(0, 0, W, H);
-      // 左アクセントライン
-      ctx.fillStyle = "#2D6A4F";
-      ctx.fillRect(0, 0, 4, H);
 
       // ヘッダー
       ctx.fillStyle = "#FDFCFA";
-      ctx.fillRect(0, 0, W, 52);
-      ctx.strokeStyle = "#E8E3DC";
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0, 52); ctx.lineTo(W, 52); ctx.stroke();
+      ctx.fillRect(0, 0, W, 60);
       ctx.fillStyle = "#2D6A4F";
-      ctx.font = "bold 17px sans-serif";
-      ctx.fillText("PathNote", 16, 34);
+      ctx.fillRect(0, 0, 4, 60);
+      ctx.strokeStyle = "#E8E3DC"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0,60); ctx.lineTo(W,60); ctx.stroke();
+      ctx.fillStyle = "#2D6A4F";
+      ctx.font = `bold 17px NotoSansJP, sans-serif`;
+      ctx.fillText("PathNote", PAD, 38);
+      ctx.fillStyle = "#9B9790";
+      ctx.font = `11px NotoSansJP, sans-serif`;
+      const label = type === "step2" ? "STEP2 詳細診断結果" : "STEP1 診断結果";
+      ctx.fillText(label, W - PAD - ctx.measureText(label).width, 38);
 
       // キーワード
-      const kw = resultData.keyword || "";
+      let y = 78;
       ctx.fillStyle = "#9B9790";
-      ctx.font = "11px sans-serif";
-      ctx.fillText("あなたを一言で表すと", 16, 72);
-      const kwW = Math.min(ctx.measureText(kw).width + 40, W - 32);
+      ctx.font = `11px NotoSansJP, sans-serif`;
+      ctx.fillText("あなたを一言で表すと", PAD, y);
+      y += 14;
+      const kw = resultData.keyword || "";
+      ctx.font = `bold 16px NotoSansJP, sans-serif`;
+      const kwW = Math.min(ctx.measureText(kw).width + 44, INNER);
       ctx.fillStyle = "#2D6A4F";
-      roundRect(ctx, 16, 80, kwW, 34, 17);
-      ctx.fill();
+      rrFill(ctx, PAD, y, kwW, 38, 19);
       ctx.fillStyle = "#fff";
-      ctx.font = "bold 15px sans-serif";
-      ctx.fillText(kw, 30, 103);
+      ctx.fillText(kw, PAD + 18, y + 26);
+      y += 38 + 18;
 
       // セクション
-      let y = 128;
-      const drawSection = (title, items, color) => {
-        if (!items || items.length === 0) return;
-        ctx.fillStyle = color;
-        ctx.font = "bold 12px sans-serif";
-        ctx.fillText(title, 16, y);
-        y += 12;
-        const boxH = items.length * 28 + 12;
-        ctx.fillStyle = color + "18";
-        roundRect(ctx, 16, y, W - 32, boxH, 8);
-        ctx.fill();
-        items.forEach((item, i) => {
-          ctx.fillStyle = color;
-          ctx.font = "bold 12px sans-serif";
-          ctx.fillText("▸", 26, y + 22 + i * 28);
-          ctx.fillStyle = "#1C1C1C";
-          ctx.font = "13px sans-serif";
-          const text = item.length > 24 ? item.slice(0, 23) + "…" : item;
-          ctx.fillText(text, 42, y + 22 + i * 28);
-        });
-        y += boxH + 14;
-      };
+      secs.forEach(sec => {
+        // タイトル
+        ctx.fillStyle = sec.color;
+        ctx.font = `bold 12px NotoSansJP, sans-serif`;
+        ctx.fillText(sec.title, PAD, y + 16);
+        y += 24;
 
-      drawSection("強み", resultData.strengths, "#2D6A4F");
-      drawSection("大切にしていること", resultData.values, "#C9742B");
-      drawSection("向いている方向", resultData.wants, "#7B5EA7");
-      if (type === "step2" && resultData.axis) {
-        const axisShort = resultData.axis.length > 40 ? resultData.axis.slice(0, 39) + "…" : resultData.axis;
-        drawSection("キャリアの軸", [axisShort], "#2D6A4F");
-      }
+        // ボックス
+        const boxH = BOX_PY + sec.allLines.length * ITEM_H + BOX_PY;
+        ctx.fillStyle = sec.color + "14";
+        rrFill(ctx, PAD, y, INNER, boxH, 10);
+
+        sec.allLines.forEach(({ line, bullet, color }, i) => {
+          const ly = y + BOX_PY + i * ITEM_H + ITEM_H * 0.72;
+          if (bullet) {
+            ctx.fillStyle = color;
+            ctx.font = `bold 13px NotoSansJP, sans-serif`;
+            ctx.fillText("▸", PAD + 10, ly);
+          }
+          ctx.fillStyle = "#1C1C1C";
+          ctx.font = `13px NotoSansJP, sans-serif`;
+          ctx.fillText(line, bullet ? PAD + 26 : PAD + 12, ly);
+        });
+
+        y += boxH + 14;
+      });
 
       // フッター
-      ctx.strokeStyle = "#E8E3DC";
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0, H - 32); ctx.lineTo(W, H - 32); ctx.stroke();
+      ctx.fillStyle = "#E8E3DC";
+      ctx.fillRect(0, H - 40, W, 1);
       ctx.fillStyle = "#9B9790";
-      ctx.font = "11px sans-serif";
-      ctx.fillText("pathnote.jp", 16, H - 12);
-      ctx.fillText(new Date().toLocaleDateString("ja-JP"), W - 85, H - 12);
+      ctx.font = `11px NotoSansJP, sans-serif`;
+      ctx.fillText("pathnote.jp", PAD, H - 14);
+      const dateStr = new Date().toLocaleDateString("ja-JP");
+      ctx.fillText(dateStr, W - PAD - ctx.measureText(dateStr).width, H - 14);
 
+      // ダウンロード
       const link = document.createElement("a");
-      link.download = `pathnote-${Date.now()}.png`;
+      link.download = `pathnote-${type}-${Date.now()}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
-    } catch (e) {
+
+    } catch {
       alert("画像の保存に失敗しました。");
     }
     setSavingImage(false);
