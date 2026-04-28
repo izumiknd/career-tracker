@@ -312,6 +312,9 @@ ${concernContext}
 ・カタカナ専門用語を使わない（モチベーション・スキルセット・ダイナミクス等すべてNG）
 ・「なぜ」は使わない。「どんな場面で」「そのとき何を感じましたか」を使う
 ・アドバイス・評価・判断はしない
+・文章は必ず自然な日本語にする。語順がおかしくならないよう注意する
+・「そのときの気持ちが何だったか思い出してみてください」のような不自然な文章はNG
+・正しい例：「そのとき、どんな気持ちでしたか？」
 
 【質問の作り方】
 ・質問は必ずシンプルな一文にする
@@ -409,7 +412,6 @@ ${themeLabel ? `【今日のテーマ】${themeLabel}` : ""}`;
     setP2choices([]);
     setP2typing(true);
     setP2turn(newTurn);
-
     const r = result || savedResult?.result;
     const concernLabel = CONCERNS.find(c=>c.id===concern)?.label || "";
     const context = r
@@ -815,6 +817,19 @@ selfpr：
         {/* プログレス */}
         <div style={{ marginBottom:32 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <button onClick={()=>{
+              if (step > 0) {
+                setStep(s => s - 1);
+                setAnswers(prev => prev.slice(0, -1));
+                setShowFree(false);
+                setFreeText("");
+              } else {
+                setPage("home");
+              }
+            }} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, fontFamily:F, display:"flex", alignItems:"center", gap:4, padding:0 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              {step === 0 ? "トップへ" : "前の質問へ"}
+            </button>
             <span style={{ fontSize:12, fontWeight:700, color:C.accent, fontFamily:FM }}>
               {step + 1} / {QUESTIONS.length}
             </span>
@@ -1232,35 +1247,21 @@ selfpr：
                     <path d="M14.5 22 L13 25.5 L16 24 L19 25.5 L17.5 22" fill="#FDFCFA"/>
                   </svg>
                 )}
-                <div style={{ maxWidth:"80%", padding:"11px 14px", borderRadius:msg.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px", background:msg.role==="user"?C.accent:C.surface, color:msg.role==="user"?"#fff":C.text, fontSize:14, lineHeight:1.85, boxShadow:C.shadow, border:msg.role==="user"?"none":`1px solid ${C.border}`, whiteSpace:"pre-wrap" }}>
-                  {msg.content}
-                  {msg.role==="assistant" && p2typing && i===p2messages.length-1 && msg.content && (
-                    <span style={{ display:"inline-block", width:2, height:13, background:C.accent, marginLeft:2, animation:"blink 0.8s infinite", verticalAlign:"middle" }}/>
-                  )}
-                </div>
+                {/* typing中で内容が空のときはドットアニメーション */}
+                {msg.role==="assistant" && p2typing && i===p2messages.length-1 && !msg.content ? (
+                  <div style={{ padding:"11px 16px", borderRadius:"14px 14px 14px 4px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", gap:4, alignItems:"center" }}>
+                    {[0,1,2].map(j=><div key={j} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${j*0.3}s infinite` }}/>)}
+                  </div>
+                ) : (
+                  <div style={{ maxWidth:"80%", padding:"11px 14px", borderRadius:msg.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px", background:msg.role==="user"?C.accent:C.surface, color:msg.role==="user"?"#fff":C.text, fontSize:14, lineHeight:1.85, boxShadow:C.shadow, border:msg.role==="user"?"none":`1px solid ${C.border}`, whiteSpace:"pre-wrap" }}>
+                    {msg.content}
+                    {msg.role==="assistant" && p2typing && i===p2messages.length-1 && msg.content && (
+                      <span style={{ display:"inline-block", width:2, height:13, background:C.accent, marginLeft:2, animation:"blink 0.8s infinite", verticalAlign:"middle" }}/>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
-
-            {p2typing && p2messages[p2messages.length-1]?.content==="" && (
-              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ flexShrink:0 }}>
-                  <circle cx="16" cy="16" r="16" fill={C.accentL}/>
-                  <ellipse cx="16" cy="13" rx="5.5" ry="6" fill="#F5D9C8"/>
-                  <ellipse cx="16" cy="8.5" rx="5.8" ry="3.5" fill="#5C4033"/>
-                  <ellipse cx="10.8" cy="11.5" rx="1.6" ry="3" fill="#5C4033"/>
-                  <ellipse cx="21.2" cy="11.5" rx="1.6" ry="3" fill="#5C4033"/>
-                  <ellipse cx="13.8" cy="13" rx="0.8" ry="0.9" fill="#2C2825"/>
-                  <ellipse cx="18.2" cy="13" rx="0.8" ry="0.9" fill="#2C2825"/>
-                  <path d="M14.2 15.5 Q16 16.5 17.8 15.5" stroke="#C08070" strokeWidth="0.8" strokeLinecap="round" fill="none"/>
-                  <rect x="14.5" y="18.5" width="3" height="2" rx="1" fill="#F5D9C8"/>
-                  <path d="M7 32 Q7 24 16 22 Q25 24 25 32" fill={C.accent}/>
-                  <path d="M14.5 22 L13 25.5 L16 24 L19 25.5 L17.5 22" fill="#FDFCFA"/>
-                </svg>
-                <div style={{ padding:"11px 16px", borderRadius:"14px 14px 14px 4px", background:C.surface, border:`1px solid ${C.border}`, display:"flex", gap:4, alignItems:"center" }}>
-                  {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:"50%", background:C.muted, animation:`blink 1.2s ${i*0.3}s infinite` }}/>)}
-                </div>
-              </div>
-            )}
 
             {/* まとめ選択UI */}
             {p2done && !p2typing && (
@@ -1287,12 +1288,9 @@ selfpr：
         <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"10px 16px 10px", flexShrink:0, zIndex:20 }}>
           {/* 選択肢ボタン */}
           {p2choices.length > 0 && !p2done && (
-            <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap", justifyContent:"center" }}>
               {p2choices.map((choice, i) => (
-                <button key={i} onClick={()=>{
-                  setP2input(choice);
-                  setP2choices([]);
-                }}
+                <button key={i} onClick={()=>{ setP2input(choice); setP2choices([]); }}
                   style={{ padding:"7px 14px", background:C.accentL, border:`1.5px solid ${C.accentM}55`, borderRadius:20, color:C.accent, cursor:"pointer", fontSize:13, fontFamily:F, fontWeight:600, whiteSpace:"nowrap" }}>
                   {choice}
                 </button>
@@ -1476,6 +1474,7 @@ selfpr：
     onBack={()=>setPage("home")}
     onRestart={restart}
     logoSrc={logoPathnote}
+    onSaveImage={saveAsImage}
     onNewSession={(themeId)=>{
       if (themeId) {
         setP2messages([]); setP2turn(0); setP2done(false); setP2result(null);
@@ -1523,7 +1522,7 @@ const SKILL_CATS_MP = [
 ];
 const YEAR_OPTS = ["半年未満","半年〜1年","1〜3年","3〜5年","5年以上"];
 
-function MyPage({ data, onBack, onRestart, onNewSession, onViewSession, logoSrc }) {
+function MyPage({ data, onBack, onRestart, onNewSession, onViewSession, logoSrc, onSaveImage }) {
   const [tab, setTab] = useState("note");
   const [showCareerForm, setShowCareerForm] = useState(false);
   const [showThemeSelect, setShowThemeSelect] = useState(false);
@@ -1666,11 +1665,18 @@ function MyPage({ data, onBack, onRestart, onNewSession, onViewSession, logoSrc 
           <div style={{ animation:"fadeUp 0.3s ease" }}>
             {latest ? (
               <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-                {/* キーワード */}
+                {/* キーワード + 画像保存 */}
                 <div style={{ textAlign:"center", padding:"24px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, boxShadow:C.shadow }}>
                   <div style={{ fontSize:11, color:C.muted, marginBottom:10, letterSpacing:"0.08em" }}>あなたを表すキーワード</div>
-                  <div style={{ display:"inline-block", padding:"8px 24px", background:C.accent, color:"#fff", borderRadius:30, fontSize:18, fontWeight:800 }}>
+                  <div style={{ display:"inline-block", padding:"8px 24px", background:C.accent, color:"#fff", borderRadius:30, fontSize:18, fontWeight:800, marginBottom:16 }}>
                     {latest.keyword}
+                  </div>
+                  <div>
+                    <button onClick={()=>onSaveImage(latest, "step2")}
+                      style={{ padding:"8px 20px", background:"transparent", border:`1.5px solid ${C.accentM}`, borderRadius:20, color:C.accent, cursor:"pointer", fontSize:13, fontFamily:F, fontWeight:600, display:"inline-flex", alignItems:"center", gap:6 }}>
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M5 7l3 3 3-3M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke={C.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      結果を画像で保存
+                    </button>
                   </div>
                 </div>
 
